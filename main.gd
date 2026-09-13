@@ -534,6 +534,17 @@ func _build_main_menu() -> void:
 	menu_overlay.add_child(settings_button)
 
 	settings_popup = PopupPanel.new()
+	var settings_panel_style := StyleBoxFlat.new()
+	settings_panel_style.bg_color = Color("#14284b")
+	settings_panel_style.border_color = Color("#62a8e5")
+	settings_panel_style.set_border_width_all(2)
+	settings_panel_style.corner_radius_top_left = 12
+	settings_panel_style.corner_radius_top_right = 12
+	settings_panel_style.corner_radius_bottom_left = 12
+	settings_panel_style.corner_radius_bottom_right = 12
+	settings_panel_style.shadow_color = Color(0, 0, 0, 0.55)
+	settings_panel_style.shadow_size = 10
+	settings_popup.add_theme_stylebox_override("panel", settings_panel_style)
 	add_child(settings_popup)
 
 	var settings_margin := MarginContainer.new()
