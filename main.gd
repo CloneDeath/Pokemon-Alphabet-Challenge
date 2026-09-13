@@ -401,7 +401,7 @@ func _populate_pokedex() -> void:
 			details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			details.add_theme_font_size_override("font_size", 12)
 			var count := int(record.get("count", 0))
-				var shiny_count := int(record.get("shiny_count", 0))
+			var shiny_count := int(record.get("shiny_count", 0))
 			details.text = "%s\n×%d" % [_pretty_name(api_name), count]
 			if shiny_count > 0:
 				details.text += "  Shiny: %d" % shiny_count
