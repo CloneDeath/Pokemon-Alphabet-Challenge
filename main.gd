@@ -811,8 +811,20 @@ func _update_active_grid_height() -> void:
 	if not is_instance_valid(answers_grid) or not is_instance_valid(answers_scroll):
 		return
 	var item_count := answers_grid.get_child_count()
-	var row_count := ceili(float(item_count) / float(maxi(1, answers_grid.columns)))
-	answers_scroll.custom_minimum_size.y = maxf(86.0, float(row_count * 37))
+	var row_count := maxi(1, ceili(float(item_count) / float(maxi(1, answers_grid.columns))))
+	var natural_height := float(row_count * 32 + maxi(0, row_count - 1) * 5)
+	var available_height := maxf(86.0, get_viewport_rect().size.y - 360.0)
+	var target_height := minf(natural_height, available_height)
+	var cell_height := (target_height - float(maxi(0, row_count - 1) * 5)) / float(row_count)
+	var icon_size := clampf(cell_height - 2.0, 14.0, 30.0)
+
+	for card in answers_grid.get_children():
+		card.custom_minimum_size = Vector2(icon_size + 2.0, icon_size + 2.0)
+		if card.get_child_count() > 0:
+			var sprite := card.get_child(0) as TextureRect
+			if sprite != null:
+				sprite.custom_minimum_size = Vector2(icon_size, icon_size)
+	answers_scroll.custom_minimum_size.y = target_height
 
 
 func _on_entry_gui_input(event: InputEvent) -> void:
@@ -1031,6 +1043,7 @@ func _add_answer_card(display_name: String, api_name: String, shiny: bool, anima
 
 	_load_sprite(api_name, compact_sprite, animate_sprite, shiny)
 	_load_sprite(api_name, recent_sprite, false, shiny)
+	_update_active_grid_height()
 
 
 func _on_answer_card_input(event: InputEvent, display_name: String) -> void:
