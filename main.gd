@@ -61,6 +61,7 @@ var run_over := false
 var run_saved := false
 var hints_remaining := 3
 var has_saved_run := false
+var active_hint_text := ""
 var current_run_names: Array[String] = []
 var current_run_shinies: Dictionary = {}
 var current_round_entries: Array[Dictionary] = []
@@ -501,6 +502,8 @@ func _resume_challenge() -> void:
 		var data: Dictionary = item
 		_add_answer_card(String(data.display_name), String(data.name), bool(data.shiny), false)
 	_update_screen()
+	hint_label.text = active_hint_text
+	_update_hint_button()
 	_open_keyboard()
 
 
@@ -602,6 +605,7 @@ func _load_active_run() -> void:
 	letter_index = int(data.get("letter_index", 0))
 	rounds_completed = int(data.get("rounds_completed", 0))
 	hints_remaining = int(data.get("hints_remaining", 3))
+	active_hint_text = String(data.get("active_hint_text", ""))
 	used_names = Dictionary(data.get("used_names", {}))
 	current_run_shinies = Dictionary(data.get("current_run_shinies", {}))
 	for value in data.get("answers", []):
@@ -622,6 +626,7 @@ func _save_active_run() -> void:
 		"letter_index": letter_index,
 		"rounds_completed": rounds_completed,
 		"hints_remaining": hints_remaining,
+		"active_hint_text": active_hint_text,
 		"answers": answers,
 		"used_names": used_names,
 		"current_run_names": current_run_names,
@@ -1250,6 +1255,7 @@ func _on_hint_species_loaded(
 
 
 func _show_hint(message: String) -> void:
+	active_hint_text = message
 	hint_label.text = message
 	hint_label.pivot_offset = hint_label.size * 0.5
 	hint_label.scale = Vector2(0.72, 0.72)
@@ -1259,6 +1265,7 @@ func _show_hint(message: String) -> void:
 	tween.tween_property(hint_label, "scale", Vector2.ONE, 0.28).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tween.tween_property(hint_label, "modulate:a", 1.0, 0.16)
 	_update_hint_button()
+	_save_active_run()
 	entry.grab_focus()
 	entry.edit()
 
@@ -1324,6 +1331,7 @@ func _update_screen() -> void:
 	progress_label.text = "Alphabet %d  •  %d / 26" % [rounds_completed + 1, letter_index]
 	letter_label.text = LETTERS[letter_index]
 	if not run_over:
+		active_hint_text = ""
 		hint_label.text = ""
 		hint_label.scale = Vector2.ONE
 		hint_label.modulate.a = 1.0
@@ -1336,6 +1344,7 @@ func _reset_run() -> void:
 	run_over = false
 	run_saved = false
 	hints_remaining = 3
+	active_hint_text = ""
 	current_run_names.clear()
 	current_run_shinies.clear()
 	current_round_entries.clear()
