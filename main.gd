@@ -247,7 +247,7 @@ func _build_ui() -> void:
 	answers_scroll.custom_minimum_size = Vector2(0, 86)
 	answers_scroll.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	answers_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	answers_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	answers_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	layout.add_child(answers_scroll)
 
 	answers_grid = GridContainer.new()
@@ -801,9 +801,18 @@ func _update_grid_columns() -> void:
 		return
 	var available_width := get_viewport_rect().size.x - 32.0
 	answers_grid.columns = clampi(int(available_width / 38.0), 6, 12)
+	_update_active_grid_height()
 	for grid in pokedex_grids:
 		if is_instance_valid(grid):
 			grid.columns = clampi(int(available_width / 104.0), 2, 5)
+
+
+func _update_active_grid_height() -> void:
+	if not is_instance_valid(answers_grid) or not is_instance_valid(answers_scroll):
+		return
+	var item_count := answers_grid.get_child_count()
+	var row_count := ceili(float(item_count) / float(maxi(1, answers_grid.columns)))
+	answers_scroll.custom_minimum_size.y = maxf(86.0, float(row_count * 37))
 
 
 func _on_entry_gui_input(event: InputEvent) -> void:
@@ -985,6 +994,7 @@ func _add_answer_card(display_name: String, api_name: String, shiny: bool, anima
 	card.tooltip_text = display_name
 	card.gui_input.connect(_on_answer_card_input.bind(display_name))
 	answers_grid.add_child(card)
+	_update_active_grid_height()
 
 	var compact_sprite := TextureRect.new()
 	compact_sprite.custom_minimum_size = Vector2(30, 30)
@@ -1050,6 +1060,7 @@ func _complete_round_display() -> void:
 	_rebuild_completed_round_squares()
 	for child in answers_grid.get_children():
 		child.queue_free()
+	answers_scroll.custom_minimum_size.y = 86.0
 
 
 func _rebuild_completed_round_squares() -> void:
@@ -1611,6 +1622,7 @@ func _reset_run() -> void:
 	recent_rows.clear()
 	for child in answers_grid.get_children():
 		child.queue_free()
+	answers_scroll.custom_minimum_size.y = 86.0
 	for child in completed_rounds_grid.get_children():
 		child.queue_free()
 	completed_rounds_scroll.visible = false
