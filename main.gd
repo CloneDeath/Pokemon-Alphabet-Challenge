@@ -18,6 +18,8 @@ var run_over := false
 var run_saved := false
 var current_run_names: Array[String] = []
 var current_run_shinies: Dictionary = {}
+var current_round_entries: Array[Dictionary] = []
+var completed_round_entries: Array[Array] = []
 var pokedex_data: Dictionary = {}
 
 var recent_rows: Array[HBoxContainer] = []
@@ -29,6 +31,8 @@ var progress_label: Label
 var answers_scroll: ScrollContainer
 var answers_grid: GridContainer
 var grid_name_label: Label
+var completed_rounds_scroll: ScrollContainer
+var completed_rounds_grid: HBoxContainer
 var suggestions_scroll: ScrollContainer
 var suggestions_label: Label
 var stumped_button: Button
@@ -122,6 +126,17 @@ func _build_ui() -> void:
 	grid_name_label.custom_minimum_size = Vector2(0, 18)
 	grid_name_label.visible = false
 	layout.add_child(grid_name_label)
+
+	completed_rounds_scroll = ScrollContainer.new()
+	completed_rounds_scroll.visible = false
+	completed_rounds_scroll.custom_minimum_size = Vector2(0, 76)
+	completed_rounds_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	completed_rounds_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	layout.add_child(completed_rounds_scroll)
+
+	completed_rounds_grid = HBoxContainer.new()
+	completed_rounds_grid.add_theme_constant_override("separation", 6)
+	completed_rounds_scroll.add_child(completed_rounds_grid)
 
 	answers_scroll = ScrollContainer.new()
 	answers_scroll.custom_minimum_size = Vector2(0, 86)
@@ -566,6 +581,7 @@ func _submit_answer(raw_answer: String) -> void:
 	var shiny := randi_range(1, 4096) == 1
 	if shiny:
 		current_run_shinies[api_name] = int(current_run_shinies.get(api_name, 0)) + 1
+	current_round_entries.append({"name": api_name, "display_name": accepted_answer, "shiny": shiny})
 	answers.append(accepted_answer)
 	_add_answer_card(accepted_answer, api_name, shiny)
 	letter_index += 1
@@ -574,6 +590,7 @@ func _submit_answer(raw_answer: String) -> void:
 
 	if letter_index >= LETTERS.length():
 		rounds_completed += 1
+		_complete_round_display()
 		letter_index = 0
 	_skip_unavailable_letters()
 	_update_screen()
@@ -665,6 +682,119 @@ func _animate_shiny_name(label: Label) -> void:
 	tween.tween_property(label, "modulate", Color("#68e5ff"), 0.35)
 	tween.tween_property(label, "modulate", Color("#9cff68"), 0.35)
 	tween.tween_property(label, "modulate", Color("#ffdc52"), 0.35)
+
+
+func _complete_round_display() -> void:
+	var snapshot: Array = current_round_entries.duplicate(true)
+	completed_round_entries.append(snapshot)
+	current_round_entries.clear()
+	completed_rounds_scroll.visible = true
+
+	var square := PanelContainer.new()
+	square.custom_minimum_size = Vector2(70, 70)
+	square.tooltip_text = "Alphabet %d — %d Pokémon" % [rounds_completed, snapshot.size()]
+	square.mouse_filter = Control.MOUSE_FILTER_STOP
+	square.gui_input.connect(_on_round_square_input.bind(snapshot, rounds_completed))
+	completed_rounds_grid.add_child(square)
+
+	var preview := GridContainer.new()
+	preview.columns = 4
+	preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	preview.add_theme_constant_override("h_separation", 0)
+	preview.add_theme_constant_override("v_separation", 0)
+	square.add_child(preview)
+
+	for index in range(mini(16, snapshot.size())):
+		var item: Dictionary = snapshot[index]
+		var sprite := TextureRect.new()
+		sprite.custom_minimum_size = Vector2(16, 16)
+		sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		sprite.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		preview.add_child(sprite)
+		_load_sprite(String(item.name), sprite, false, bool(item.shiny))
+
+	for child in answers_grid.get_children():
+		child.queue_free()
+	call_deferred("_scroll_completed_rounds_to_end")
+
+
+func _scroll_completed_rounds_to_end() -> void:
+	await get_tree().process_frame
+	completed_rounds_scroll.scroll_horizontal = int(completed_rounds_scroll.get_h_scroll_bar().max_value)
+
+
+func _on_round_square_input(event: InputEvent, entries: Array, round_number: int) -> void:
+	if (event is InputEventScreenTouch and event.pressed) or (event is InputEventMouseButton and event.pressed):
+		_show_round_popup(entries, round_number)
+
+
+func _show_round_popup(entries: Array, round_number: int) -> void:
+	var popup := PopupPanel.new()
+	add_child(popup)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 12)
+	margin.add_theme_constant_override("margin_right", 12)
+	margin.add_theme_constant_override("margin_top", 12)
+	margin.add_theme_constant_override("margin_bottom", 12)
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	popup.add_child(margin)
+
+	var layout := VBoxContainer.new()
+	layout.add_theme_constant_override("separation", 8)
+	margin.add_child(layout)
+
+	var title := Label.new()
+	title.text = "Alphabet %d" % round_number
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 22)
+	title.add_theme_color_override("font_color", Color("#ffcb05"))
+	layout.add_child(title)
+
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	layout.add_child(scroll)
+
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_theme_constant_override("h_separation", 6)
+	grid.add_theme_constant_override("v_separation", 8)
+	scroll.add_child(grid)
+
+	for entry_data in entries:
+		var item: Dictionary = entry_data
+		var card := VBoxContainer.new()
+		card.custom_minimum_size = Vector2(88, 84)
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		grid.add_child(card)
+
+		var sprite := TextureRect.new()
+		sprite.custom_minimum_size = Vector2(58, 58)
+		sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		card.add_child(sprite)
+		_load_sprite(String(item.name), sprite, false, bool(item.shiny))
+
+		var label := Label.new()
+		label.text = String(item.display_name)
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		label.add_theme_font_size_override("font_size", 12)
+		card.add_child(label)
+		if bool(item.shiny):
+			_animate_shiny_name(label)
+
+	popup.popup_hide.connect(popup.queue_free)
+	var popup_size := Vector2i(
+		mini(380, int(get_viewport_rect().size.x) - 20),
+		mini(620, int(get_viewport_rect().size.y) - 40)
+	)
+	popup.popup_centered(popup_size)
 
 
 func _update_recent_opacity() -> void:
@@ -870,6 +1000,8 @@ func _reset_run() -> void:
 	run_saved = false
 	current_run_names.clear()
 	current_run_shinies.clear()
+	current_round_entries.clear()
+	completed_round_entries.clear()
 	answers.clear()
 	used_names.clear()
 	for row in recent_rows:
@@ -878,6 +1010,9 @@ func _reset_run() -> void:
 	recent_rows.clear()
 	for child in answers_grid.get_children():
 		child.queue_free()
+	for child in completed_rounds_grid.get_children():
+		child.queue_free()
+	completed_rounds_scroll.visible = false
 	entry.visible = true
 	stumped_button.visible = true
 	answers_scroll.visible = true
