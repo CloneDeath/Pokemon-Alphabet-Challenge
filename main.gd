@@ -109,6 +109,7 @@ var pokedex_overlay: Control
 var pokedex_button: Button
 var resume_button: Button
 var time_trial_button: Button
+var restore_dialog: FileDialog
 var pokedex_list: VBoxContainer
 var pokedex_grids: Array[GridContainer] = []
 
@@ -497,6 +498,90 @@ func _build_main_menu() -> void:
 	pokedex_button.pressed.connect(_show_pokedex)
 	menu.add_child(pokedex_button)
 
+	var save_buttons := HBoxContainer.new()
+	save_buttons.add_theme_constant_override("separation", 8)
+	menu.add_child(save_buttons)
+
+	var backup_button := Button.new()
+	backup_button.text = "Backup Save"
+	backup_button.custom_minimum_size = Vector2(0, 42)
+	backup_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	backup_button.pressed.connect(_backup_save)
+	save_buttons.add_child(backup_button)
+
+	var restore_button := Button.new()
+	restore_button.text = "Restore Save"
+	restore_button.custom_minimum_size = Vector2(0, 42)
+	restore_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	restore_button.pressed.connect(_choose_restore_save)
+	save_buttons.add_child(restore_button)
+
+	restore_dialog = FileDialog.new()
+	restore_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	restore_dialog.access = FileDialog.ACCESS_FILESYSTEM
+	restore_dialog.use_native_dialog = true
+	restore_dialog.filters = PackedStringArray(["*.json ; Pokémon Alphabet Save"])
+	restore_dialog.file_selected.connect(_restore_save)
+	add_child(restore_dialog)
+
+
+func _stats_data() -> Dictionary:
+	var data := {
+		"high_score": high_score,
+		"infinite_mode_unlocked": infinite_mode_unlocked
+	}
+	if has_time_trial_best:
+		data["time_trial_best"] = time_trial_best
+	return data
+
+
+func _read_json_file(path: String):
+	if not FileAccess.file_exists(path):
+		return {}
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return {}
+	var data = JSON.parse_string(file.get_as_text())
+	return data if typeof(data) == TYPE_DICTIONARY else {}
+
+
+func _backup_save() -> void:
+	var backup := {
+		"format": 1,
+		"pokedex": pokedex_data,
+		"stats": _stats_data()
+	}
+	var active_data = _read_json_file(ACTIVE_RUN_PATH)
+	if not active_data.is_empty():
+		backup["active_run"] = active_data
+	var bytes := JSON.stringify(backup).to_utf8_buffer()
+	if OS.has_feature("web"):
+		JavaScriptBridge.download_buffer(bytes, "pokemon-alphabet-save.json", "application/json")
+
+
+func _choose_restore_save() -> void:
+	restore_dialog.popup_centered_ratio(0.85)
+
+
+func _write_json_file(path: String, data: Dictionary) -> void:
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file != null:
+		file.store_string(JSON.stringify(data))
+
+
+func _restore_save(path: String) -> void:
+	var backup = _read_json_file(path)
+	if backup.is_empty() or int(backup.get("format", 0)) != 1:
+		_show_info_popup("Invalid save backup")
+		return
+	_write_json_file(SAVE_PATH, Dictionary(backup.get("pokedex", {})))
+	_write_json_file(STATS_PATH, Dictionary(backup.get("stats", {})))
+	if backup.has("active_run"):
+		_write_json_file(ACTIVE_RUN_PATH, Dictionary(backup.active_run))
+	elif FileAccess.file_exists(ACTIVE_RUN_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(ACTIVE_RUN_PATH))
+	get_tree().reload_current_scene()
+
 
 func _build_pokedex_screen() -> void:
 	pokedex_overlay = Control.new()
@@ -714,15 +799,7 @@ func _load_stats() -> void:
 
 
 func _save_stats() -> void:
-	var data := {
-		"high_score": high_score,
-		"infinite_mode_unlocked": infinite_mode_unlocked
-	}
-	if has_time_trial_best:
-		data["time_trial_best"] = time_trial_best
-	var file := FileAccess.open(STATS_PATH, FileAccess.WRITE)
-	if file != null:
-		file.store_string(JSON.stringify(data))
+	_write_json_file(STATS_PATH, _stats_data())
 
 
 func _load_active_run() -> void:
