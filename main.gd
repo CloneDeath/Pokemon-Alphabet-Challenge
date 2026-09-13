@@ -116,6 +116,10 @@ func _build_ui() -> void:
 	status_label.custom_minimum_size = Vector2(0, 24)
 	layout.add_child(status_label)
 
+	# Keep typing and feedback above content that the phone keyboard may cover.
+	layout.move_child(input_row, 2)
+	layout.move_child(status_label, 3)
+
 	restart_button = Button.new()
 	restart_button.text = "Play Again"
 	restart_button.visible = false
