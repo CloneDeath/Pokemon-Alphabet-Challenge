@@ -41,8 +41,13 @@ jobs:
 
       - name: Export for web
         run: |
+          set -o pipefail
           mkdir -p build
-          ./godot --headless --export-release Web build/index.html
+          ./godot --headless --export-release Web build/index.html 2>&1 | tee godot-export.log
+          if grep -Eq "SCRIPT ERROR:|Failed to load script" godot-export.log; then
+            echo "Godot reported a script error."
+            exit 1
+          fi
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
