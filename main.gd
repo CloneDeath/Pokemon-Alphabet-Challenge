@@ -1313,7 +1313,7 @@ func _ask_give_up() -> void:
 
 
 func _confirm_stumped() -> void:
-	_end_run("You made it to %s." % LETTERS[letter_index])
+	_end_run("You made it to %s" % LETTERS[letter_index])
 
 
 func _alphabet_count_text(count: int) -> String:
@@ -1360,7 +1360,7 @@ func _end_run(reason: String) -> void:
 		answer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		answer_label.add_theme_font_size_override("font_size", 14)
 		card.add_child(answer_label)
-	status_label.text = "%s  %s, %d Pokémon." % [reason, _alphabet_count_text(rounds_completed), answers.size()]
+	status_label.text = "%s  •  %s  •  %d Pokémon" % [reason, _alphabet_count_text(rounds_completed), answers.size()]
 	status_label.visible = true
 	_update_screen()
 
