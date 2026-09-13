@@ -259,6 +259,22 @@ func _build_ui() -> void:
 	hint_button.focus_mode = Control.FOCUS_NONE
 	hint_button.custom_minimum_size = Vector2(112, 0)
 	hint_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hint_button.add_theme_color_override("font_color", Color("#09213a"))
+	var hint_style := StyleBoxFlat.new()
+	hint_style.bg_color = Color("#79d7f2")
+	hint_style.corner_radius_top_left = 8
+	hint_style.corner_radius_top_right = 8
+	hint_style.corner_radius_bottom_left = 8
+	hint_style.corner_radius_bottom_right = 8
+	hint_style.content_margin_top = 6
+	hint_style.content_margin_bottom = 6
+	hint_button.add_theme_stylebox_override("normal", hint_style)
+	var hint_hover_style := hint_style.duplicate()
+	hint_hover_style.bg_color = Color("#a4e8f8")
+	hint_button.add_theme_stylebox_override("hover", hint_hover_style)
+	var hint_pressed_style := hint_style.duplicate()
+	hint_pressed_style.bg_color = Color("#55b9dc")
+	hint_button.add_theme_stylebox_override("pressed", hint_pressed_style)
 	hint_button.pressed.connect(_use_hint)
 	action_row.add_child(hint_button)
 	_update_hint_button()
