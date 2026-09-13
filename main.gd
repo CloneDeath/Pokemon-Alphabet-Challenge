@@ -23,7 +23,6 @@ var answers_scroll: ScrollContainer
 var answers_grid: GridContainer
 var suggestions_scroll: ScrollContainer
 var suggestions_label: Label
-var submit_button: Button
 var stumped_button: Button
 var restart_button: Button
 
@@ -110,16 +109,20 @@ func _build_ui() -> void:
 	entry.gui_input.connect(_on_entry_gui_input)
 	input_row.add_child(entry)
 
-	submit_button = Button.new()
-	submit_button.text = "Submit"
-	submit_button.custom_minimum_size = Vector2(78, 50)
-	submit_button.focus_mode = Control.FOCUS_NONE
-	submit_button.pressed.connect(func(): _submit_answer(entry.text))
-	input_row.add_child(submit_button)
-
 	stumped_button = Button.new()
-	stumped_button.text = "I'm Stumped"
+	stumped_button.text = "Give Up 😔"
 	stumped_button.focus_mode = Control.FOCUS_NONE
+	stumped_button.add_theme_color_override("font_color", Color.WHITE)
+	stumped_button.add_theme_font_size_override("font_size", 16)
+	var give_up_style := StyleBoxFlat.new()
+	give_up_style.bg_color = Color("#b83a4b")
+	give_up_style.corner_radius_top_left = 8
+	give_up_style.corner_radius_top_right = 8
+	give_up_style.corner_radius_bottom_left = 8
+	give_up_style.corner_radius_bottom_right = 8
+	give_up_style.content_margin_top = 10
+	give_up_style.content_margin_bottom = 10
+	stumped_button.add_theme_stylebox_override("normal", give_up_style)
 	stumped_button.pressed.connect(_stumped)
 	layout.add_child(stumped_button)
 
@@ -401,14 +404,13 @@ func _show_error(message: String) -> void:
 
 
 func _stumped() -> void:
-	_end_run("I'm stumped!")
+	_end_run("Gave up!")
 
 
 func _end_run(reason: String) -> void:
 	run_over = true
 	DisplayServer.virtual_keyboard_hide()
 	entry.visible = false
-	submit_button.visible = false
 	stumped_button.visible = false
 	answers_scroll.visible = false
 	suggestions_scroll.visible = true
@@ -441,7 +443,6 @@ func _restart() -> void:
 	for child in answers_grid.get_children():
 		child.queue_free()
 	entry.visible = true
-	submit_button.visible = true
 	stumped_button.visible = true
 	answers_scroll.visible = true
 	suggestions_scroll.visible = false
