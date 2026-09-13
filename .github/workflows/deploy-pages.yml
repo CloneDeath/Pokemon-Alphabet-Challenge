@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   workflow_dispatch:
 
 permissions:
@@ -33,6 +33,11 @@ jobs:
           mv templates/* "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/"
           mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot
           chmod +x godot
+
+      - name: Add build label
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          printf 'const LABEL := "%s @ %s"\n' "$GITHUB_REF_NAME" "$SHORT_SHA" > build_info.gd
 
       - name: Export for web
         run: |
