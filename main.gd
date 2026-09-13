@@ -54,6 +54,7 @@ const BUILD_INFO = preload("res://build_info.gd")
 const POKEMON_LOGO = preload("res://assets/pokemon-logo.png")
 const GEAR_ICON = preload("res://assets/gear.svg")
 const BACKGROUND_ICONS = preload("res://assets/background-icons.svg")
+const MEDAL_ART = preload("res://assets/medals.svg")
 
 var letter_index := 0
 var rounds_completed := 0
@@ -101,6 +102,7 @@ var entry: LineEdit
 var status_label: Label
 var progress_label: Label
 var timer_label: Label
+var medal_icon: TextureRect
 var medal_label: Label
 var answers_scroll: ScrollContainer
 var answers_grid: GridContainer
@@ -129,6 +131,9 @@ var time_trial_button: Button
 var time_trial_score_label: Label
 var time_attack_score_label: Label
 var infinite_score_label: Label
+var time_trial_medal_icon: TextureRect
+var time_attack_medal_icon: TextureRect
+var infinite_medal_icon: TextureRect
 var restore_dialog: FileDialog
 var settings_popup: PopupPanel
 var pokedex_list: VBoxContainer
@@ -496,11 +501,23 @@ func _build_ui() -> void:
 	suggestions_layout.add_theme_constant_override("separation", 4)
 	suggestions_scroll.add_child(suggestions_layout)
 
+	var medal_row := HBoxContainer.new()
+	medal_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	medal_row.add_theme_constant_override("separation", 6)
+	suggestions_layout.add_child(medal_row)
+
+	medal_icon = TextureRect.new()
+	medal_icon.visible = false
+	medal_icon.custom_minimum_size = Vector2(52, 52)
+	medal_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	medal_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	medal_row.add_child(medal_icon)
+
 	medal_label = Label.new()
 	medal_label.visible = false
 	medal_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	medal_label.add_theme_font_size_override("font_size", 19)
-	suggestions_layout.add_child(medal_label)
+	medal_row.add_child(medal_label)
 
 	suggestions_label = Label.new()
 	suggestions_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -652,6 +669,8 @@ func _build_main_menu() -> void:
 	time_trial_row.add_child(start_button)
 
 	time_trial_score_label = _create_menu_score_label()
+	time_trial_medal_icon = _create_menu_medal_icon()
+	time_trial_row.add_child(time_trial_medal_icon)
 	time_trial_row.add_child(time_trial_score_label)
 
 	var time_attack_row := HBoxContainer.new()
@@ -668,6 +687,8 @@ func _build_main_menu() -> void:
 	time_attack_row.add_child(time_attack_button)
 
 	time_attack_score_label = _create_menu_score_label()
+	time_attack_medal_icon = _create_menu_medal_icon()
+	time_attack_row.add_child(time_attack_medal_icon)
 	time_attack_row.add_child(time_attack_score_label)
 
 	var infinite_row := HBoxContainer.new()
@@ -685,6 +706,8 @@ func _build_main_menu() -> void:
 	infinite_row.add_child(time_trial_button)
 
 	infinite_score_label = _create_menu_score_label()
+	infinite_medal_icon = _create_menu_medal_icon()
+	infinite_row.add_child(infinite_medal_icon)
 	infinite_row.add_child(infinite_score_label)
 
 	pokedex_button = Button.new()
@@ -775,13 +798,22 @@ func _build_main_menu() -> void:
 
 func _create_menu_score_label() -> Label:
 	var label := Label.new()
-	label.custom_minimum_size = Vector2(116, 0)
+	label.custom_minimum_size = Vector2(82, 0)
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.add_theme_font_size_override("font_size", 11)
 	label.add_theme_color_override("font_color", Color("#aebbd4"))
 	return label
+
+
+func _create_menu_medal_icon() -> TextureRect:
+	var icon := TextureRect.new()
+	icon.visible = false
+	icon.custom_minimum_size = Vector2(32, 42)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	return icon
 
 
 func _show_save_settings() -> void:
@@ -931,12 +963,21 @@ func _refresh_main_menu() -> void:
 	time_trial_score_label.text = "" if not has_time_trial_best else "%s\n%s" % [
 		_format_time(time_trial_best), _time_trial_medal_name(time_trial_best)
 	]
+	_set_menu_medal(time_trial_medal_icon, _time_trial_medal_name(time_trial_best), has_time_trial_best)
 	time_attack_score_label.text = "" if not has_time_attack_high_score else "%d Pokémon\n%s" % [
 		time_attack_high_score, _time_attack_medal_name(time_attack_best_alphabets)
 	]
+	_set_menu_medal(time_attack_medal_icon, _time_attack_medal_name(time_attack_best_alphabets), has_time_attack_high_score)
 	infinite_score_label.text = "" if not has_high_score else "%d Pokémon\n%s" % [
 		high_score, _infinite_medal_name(infinite_best_alphabets)
 	]
+	_set_menu_medal(infinite_medal_icon, _infinite_medal_name(infinite_best_alphabets), has_high_score)
+
+
+func _set_menu_medal(icon: TextureRect, name: String, has_score: bool) -> void:
+	icon.visible = has_score and name != "No medal"
+	if icon.visible:
+		icon.texture = _medal_texture(name)
 
 
 func _start_challenge() -> void:
@@ -1971,10 +2012,25 @@ func _medal_color(name: String) -> Color:
 	}.get(name, Color("#30486f"))
 
 
+func _medal_texture(name: String) -> AtlasTexture:
+	var medal_index := {
+		"Sapphire": 0, "Ruby": 1, "Emerald": 2, "Silver": 3,
+		"Gold": 4, "Crystal": 5, "Pearl": 6, "Diamond": 7,
+		"Platinum": 8, "Participation": 9
+	}.get(name, 9)
+	var texture := AtlasTexture.new()
+	texture.atlas = MEDAL_ART
+	texture.region = Rect2(float(medal_index) * 100.0, 0, 100, 100)
+	return texture
+
+
 func _show_medal(name: String) -> void:
 	if name == "No medal":
+		medal_icon.visible = false
 		medal_label.visible = false
 		return
+	medal_icon.texture = _medal_texture(name)
+	medal_icon.visible = true
 	medal_label.visible = true
 	var medal_style := StyleBoxFlat.new()
 	medal_style.corner_radius_top_left = 12
@@ -2145,6 +2201,7 @@ func _reset_run() -> void:
 		child.queue_free()
 	completed_rounds_scroll.visible = false
 	timer_label.visible = game_mode == "time_trial" or game_mode == "time_attack"
+	medal_icon.visible = false
 	medal_label.visible = false
 	entry.visible = true
 	current_row.visible = true
