@@ -183,7 +183,7 @@ func _build_background() -> void:
 
 	var specs := [
 		[0, Vector2(0.08, 0.12), 64.0, 0.],
-		[4, Vector2(0.82, 0.09), 50.0, 0.],
+		[4, Vector2(0.82, 0.09), 50.0, 0.55],
 		[2, Vector2(0.72, 0.26), 72.0, 1.10],
 		[6, Vector2(0.12, 0.34), 48.0, 1.65],
 		[1, Vector2(0.88, 0.48), 62.0, 2.20],
@@ -528,7 +528,7 @@ func _build_main_menu() -> void:
 	add_child(menu_overlay)
 
 	var background := ColorRect.new()
-	background.color = Color("#03060dc7")
+	background.color = Color("#03060d70")
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	menu_overlay.add_child(background)
 
@@ -758,7 +758,7 @@ func _build_pokedex_screen() -> void:
 	add_child(pokedex_overlay)
 
 	var background := ColorRect.new()
-	background.color = Color("#03060dc7")
+	background.color = Color("#03060d70")
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	pokedex_overlay.add_child(background)
 
