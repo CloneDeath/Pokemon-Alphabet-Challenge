@@ -17,6 +17,33 @@ const STARTER_NAMES := {
 	"grookey": true, "scorbunny": true, "sobble": true,
 	"sprigatito": true, "fuecoco": true, "quaxly": true
 }
+const STARTER_DESCENDANTS := {
+	"ivysaur": true, "venusaur": true, "charmeleon": true, "charizard": true, "wartortle": true, "blastoise": true,
+	"bayleef": true, "meganium": true, "quilava": true, "typhlosion": true, "croconaw": true, "feraligatr": true,
+	"grovyle": true, "sceptile": true, "combusken": true, "blaziken": true, "marshtomp": true, "swampert": true,
+	"grotle": true, "torterra": true, "monferno": true, "infernape": true, "prinplup": true, "empoleon": true,
+	"servine": true, "serperior": true, "pignite": true, "emboar": true, "dewott": true, "samurott": true,
+	"quilladin": true, "chesnaught": true, "braixen": true, "delphox": true, "frogadier": true, "greninja": true,
+	"dartrix": true, "decidueye": true, "torracat": true, "incineroar": true, "brionne": true, "primarina": true,
+	"thwackey": true, "rillaboom": true, "raboot": true, "cinderace": true, "drizzile": true, "inteleon": true,
+	"floragato": true, "meowscarada": true, "crocalor": true, "skeledirge": true, "quaxwell": true, "quaquaval": true
+}
+const LEGENDARY_NAMES := {
+	"articuno": true, "zapdos": true, "moltres": true, "mewtwo": true, "raikou": true, "entei": true, "suicune": true, "lugia": true, "ho-oh": true,
+	"regirock": true, "regice": true, "registeel": true, "latias": true, "latios": true, "kyogre": true, "groudon": true, "rayquaza": true,
+	"uxie": true, "mesprit": true, "azelf": true, "dialga": true, "palkia": true, "heatran": true, "regigigas": true, "giratina": true, "cresselia": true,
+	"cobalion": true, "terrakion": true, "virizion": true, "tornadus": true, "thundurus": true, "reshiram": true, "zekrom": true, "landorus": true, "kyurem": true,
+	"xerneas": true, "yveltal": true, "zygarde": true, "type-null": true, "silvally": true, "tapu-koko": true, "tapu-lele": true, "tapu-bulu": true, "tapu-fini": true,
+	"cosmog": true, "cosmoem": true, "solgaleo": true, "lunala": true, "necrozma": true, "zacian": true, "zamazenta": true, "eternatus": true, "kubfu": true,
+	"urshifu": true, "regieleki": true, "regidrago": true, "glastrier": true, "spectrier": true, "calyrex": true, "enamorus": true,
+	"wo-chien": true, "chien-pao": true, "ting-lu": true, "chi-yu": true, "koraidon": true, "miraidon": true, "okidogi": true, "munkidori": true,
+	"fezandipiti": true, "ogerpon": true, "terapagos": true
+}
+const MYTHICAL_NAMES := {
+	"mew": true, "celebi": true, "jirachi": true, "deoxys": true, "phione": true, "manaphy": true, "darkrai": true, "shaymin": true, "arceus": true,
+	"victini": true, "keldeo": true, "meloetta": true, "genesect": true, "diancie": true, "hoopa": true, "volcanion": true, "magearna": true,
+	"marshadow": true, "zeraora": true, "meltan": true, "melmetal": true, "zarude": true, "pecharunt": true
+}
 const BUILD_INFO = preload("res://build_info.gd")
 
 var letter_index := 0
@@ -37,6 +64,7 @@ var pokedex_data: Dictionary = {}
 var recent_rows: Array[HBoxContainer] = []
 var letter_label: Label
 var recent_list: VBoxContainer
+var hint_label: Label
 var entry: LineEdit
 var status_label: Label
 var progress_label: Label
@@ -132,6 +160,15 @@ func _build_ui() -> void:
 	recent_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	recent_list.add_theme_constant_override("separation", 1)
 	current_row.add_child(recent_list)
+
+	hint_label = Label.new()
+	hint_label.custom_minimum_size = Vector2(102, 86)
+	hint_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint_label.add_theme_font_size_override("font_size", 12)
+	hint_label.add_theme_color_override("font_color", Color("#ffdc52"))
+	current_row.add_child(hint_label)
 
 	grid_name_label = Label.new()
 	grid_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1030,14 +1067,32 @@ func _use_hint() -> void:
 	var possible := _available_names_for_letter(LETTERS[letter_index])
 	if possible.is_empty():
 		return
+	var candidate := _pick_hint_candidate(possible)
 	hints_remaining -= 1
 	_update_hint_button()
-	hint_button.disabled = true
-	var candidate := possible.pick_random()
-	var request := HTTPRequest.new()
-	add_child(request)
-	request.request_completed.connect(_on_hint_species_loaded.bind(request, candidate))
-	request.request("https://pokeapi.co/api/v2/pokemon-species/%s" % candidate)
+
+	if STARTER_NAMES.has(candidate):
+		_show_hint("It's a starter.")
+	elif STARTER_DESCENDANTS.has(candidate):
+		_show_hint("It evolves from a starter.")
+	elif LEGENDARY_NAMES.has(candidate):
+		_show_hint("It's legendary.")
+	elif MYTHICAL_NAMES.has(candidate):
+		_show_hint("It's mythical.")
+	else:
+		hint_button.disabled = true
+		var request := HTTPRequest.new()
+		add_child(request)
+		request.request_completed.connect(_on_hint_species_loaded.bind(request))
+		request.request("https://pokeapi.co/api/v2/pokemon-species/%s" % candidate)
+
+
+func _pick_hint_candidate(possible: Array[String]) -> String:
+	for category in [STARTER_NAMES, STARTER_DESCENDANTS, LEGENDARY_NAMES, MYTHICAL_NAMES]:
+		for candidate in possible:
+			if category.has(candidate):
+				return candidate
+	return possible.pick_random()
 
 
 func _on_hint_species_loaded(
@@ -1045,8 +1100,7 @@ func _on_hint_species_loaded(
 	response_code: int,
 	_headers: PackedStringArray,
 	body: PackedByteArray,
-	request: HTTPRequest,
-	candidate: String
+	request: HTTPRequest
 ) -> void:
 	request.queue_free()
 	if response_code != 200:
@@ -1059,52 +1113,12 @@ func _on_hint_species_loaded(
 		hints_remaining = mini(3, hints_remaining + 1)
 		_update_hint_button()
 		return
-	if STARTER_NAMES.has(candidate):
-		_show_hint("A possible answer is a starter.")
-		return
-	var chain_url := String(data.get("evolution_chain", {}).get("url", ""))
-	if chain_url.is_empty():
-		_finish_species_hint(data)
-		return
-	var chain_request := HTTPRequest.new()
-	add_child(chain_request)
-	chain_request.request_completed.connect(_on_hint_chain_loaded.bind(chain_request, data))
-	chain_request.request(chain_url)
-
-
-func _on_hint_chain_loaded(
-	_result: int,
-	response_code: int,
-	_headers: PackedStringArray,
-	body: PackedByteArray,
-	request: HTTPRequest,
-	species_data: Dictionary
-) -> void:
-	request.queue_free()
-	if response_code == 200:
-		var chain_data = JSON.parse_string(body.get_string_from_utf8())
-		if typeof(chain_data) == TYPE_DICTIONARY:
-			var root_name := String(chain_data.get("chain", {}).get("species", {}).get("name", ""))
-			if STARTER_NAMES.has(root_name):
-				_show_hint("A possible answer evolves from a starter.")
-				return
-	_finish_species_hint(species_data)
-
-
-func _finish_species_hint(data: Dictionary) -> void:
-	if bool(data.get("is_legendary", false)):
-		_show_hint("A possible answer is legendary.")
-	elif bool(data.get("is_mythical", false)):
-		_show_hint("A possible answer is mythical.")
-	else:
-		var generation := String(data.get("generation", {}).get("name", "unknown")).trim_prefix("generation-").to_upper()
-		_show_hint("A possible answer debuted in Generation %s." % generation)
+	var generation := String(data.get("generation", {}).get("name", "unknown")).trim_prefix("generation-").to_upper()
+	_show_hint("Introduced in Generation %s." % generation)
 
 
 func _show_hint(message: String) -> void:
-	status_label.text = message
-	status_label.visible = true
-	status_label.add_theme_color_override("font_color", Color("#ffdc52"))
+	hint_label.text = message
 	_update_hint_button()
 	entry.grab_focus()
 	entry.edit()
@@ -1149,6 +1163,8 @@ func _update_screen() -> void:
 	status_label.remove_theme_color_override("font_color")
 	progress_label.text = "Alphabet %d  •  %d / 26" % [rounds_completed + 1, letter_index]
 	letter_label.text = LETTERS[letter_index]
+	if not run_over:
+		hint_label.text = ""
 
 
 func _reset_run() -> void:
@@ -1180,6 +1196,7 @@ func _reset_run() -> void:
 	suggestions_scroll.visible = false
 	results_buttons.visible = false
 	grid_name_label.visible = false
+	hint_label.text = ""
 	status_label.text = ""
 	status_label.visible = false
 	_skip_unavailable_letters()
