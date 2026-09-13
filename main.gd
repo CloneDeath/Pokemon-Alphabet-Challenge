@@ -15,13 +15,15 @@ var entry: LineEdit
 var status_label: Label
 var progress_label: Label
 var answers_scroll: ScrollContainer
-var answers_row: HBoxContainer
+var answers_grid: GridContainer
 var submit_button: Button
 var restart_button: Button
 
 
 func _ready() -> void:
 	_build_ui()
+	get_viewport().size_changed.connect(_update_grid_columns)
+	_update_grid_columns()
 	_update_screen()
 	_load_pokemon_names()
 
@@ -74,15 +76,17 @@ func _build_ui() -> void:
 	layout.add_child(letter_label)
 
 	answers_scroll = ScrollContainer.new()
-	answers_scroll.custom_minimum_size = Vector2(0, 112)
+	answers_scroll.custom_minimum_size = Vector2(0, 92)
 	answers_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	answers_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	answers_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	answers_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	answers_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	layout.add_child(answers_scroll)
 
-	answers_row = HBoxContainer.new()
-	answers_row.add_theme_constant_override("separation", 10)
-	answers_scroll.add_child(answers_row)
+	answers_grid = GridContainer.new()
+	answers_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	answers_grid.add_theme_constant_override("h_separation", 6)
+	answers_grid.add_theme_constant_override("v_separation", 6)
+	answers_scroll.add_child(answers_grid)
 
 	var input_row := HBoxContainer.new()
 	input_row.add_theme_constant_override("separation", 8)
@@ -117,6 +121,13 @@ func _build_ui() -> void:
 	restart_button.visible = false
 	restart_button.pressed.connect(_restart)
 	layout.add_child(restart_button)
+
+
+func _update_grid_columns() -> void:
+	if not is_instance_valid(answers_grid):
+		return
+	var available_width := get_viewport_rect().size.x - 32.0
+	answers_grid.columns = clampi(int(available_width / 78.0), 3, 6)
 
 
 func _on_entry_gui_input(event: InputEvent) -> void:
@@ -213,12 +224,13 @@ func _submit_answer(raw_answer: String) -> void:
 
 func _add_answer_card(display_name: String, api_name: String) -> void:
 	var card := VBoxContainer.new()
-	card.custom_minimum_size = Vector2(84, 104)
+	card.custom_minimum_size = Vector2(72, 88)
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card.alignment = BoxContainer.ALIGNMENT_CENTER
-	answers_row.add_child(card)
+	answers_grid.add_child(card)
 
 	var sprite := TextureRect.new()
-	sprite.custom_minimum_size = Vector2(80, 80)
+	sprite.custom_minimum_size = Vector2(62, 62)
 	sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -227,7 +239,9 @@ func _add_answer_card(display_name: String, api_name: String) -> void:
 	var name_label := Label.new()
 	name_label.text = display_name
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	name_label.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
+	name_label.add_theme_font_size_override("font_size", 11)
+	name_label.custom_minimum_size = Vector2(72, 28)
 	name_label.tooltip_text = display_name
 	card.add_child(name_label)
 
@@ -257,7 +271,7 @@ func _on_sprite_loaded(
 
 func _scroll_to_latest() -> void:
 	await get_tree().process_frame
-	answers_scroll.scroll_horizontal = int(answers_scroll.get_h_scroll_bar().max_value)
+	answers_scroll.scroll_vertical = int(answers_scroll.get_v_scroll_bar().max_value)
 
 
 func _normalize_name(value: String) -> String:
@@ -338,7 +352,7 @@ func _update_screen() -> void:
 func _restart() -> void:
 	letter_index = 0
 	answers.clear()
-	for child in answers_row.get_children():
+	for child in answers_grid.get_children():
 		child.queue_free()
 	entry.visible = true
 	submit_button.visible = true
