@@ -1804,7 +1804,9 @@ func _use_hint() -> void:
 	_update_hint_button()
 	_save_active_run()
 
-	if EEVEELUTIONS.has(candidate):
+	if candidate == "pikachu":
+		_show_hint("Think of the Pokémon mascot.")
+	elif EEVEELUTIONS.has(candidate):
 		_show_hint("Think of Eeveelutions.")
 	elif STARTER_NAMES.has(candidate):
 		_show_hint("Think of first partner Pokémon.")
@@ -1823,6 +1825,8 @@ func _use_hint() -> void:
 
 
 func _pick_hint_candidate(possible: Array[String]) -> String:
+	if possible.has("pikachu"):
+		return "pikachu"
 	for category in [EEVEELUTIONS, STARTER_NAMES, STARTER_DESCENDANTS, LEGENDARY_NAMES, MYTHICAL_NAMES]:
 		for candidate in possible:
 			if category.has(candidate):
@@ -2058,6 +2062,11 @@ func _end_run(reason: String, completed_time_trial: bool = false) -> void:
 
 func _populate_possible_answers(prefix: String) -> void:
 	var possible := _available_names_for_letter(LETTERS[letter_index])
+	possible.sort_custom(func(left: String, right: String):
+		var left_priority := _suggestion_priority(left)
+		var right_priority := _suggestion_priority(right)
+		return left.naturalnocasecmp_to(right) < 0 if left_priority == right_priority else left_priority < right_priority
+	)
 	if not active_hint_pokemon.is_empty() and possible.has(active_hint_pokemon):
 		possible.erase(active_hint_pokemon)
 		possible.push_front(active_hint_pokemon)
@@ -2088,6 +2097,16 @@ func _populate_possible_answers(prefix: String) -> void:
 		answer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		answer_label.add_theme_font_size_override("font_size", 14)
 		card.add_child(answer_label)
+
+
+func _suggestion_priority(api_name: String) -> int:
+	if api_name == "pikachu": return 0
+	if EEVEELUTIONS.has(api_name): return 1
+	if STARTER_NAMES.has(api_name): return 2
+	if STARTER_DESCENDANTS.has(api_name): return 3
+	if LEGENDARY_NAMES.has(api_name): return 4
+	if MYTHICAL_NAMES.has(api_name): return 5
+	return 6
 
 
 func _update_screen() -> void:
