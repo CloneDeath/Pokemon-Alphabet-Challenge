@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 100">
+<style>.i{fill:none;stroke-width:5;stroke-linecap:round;stroke-linejoin:round}</style>
+<!-- Poké Ball -->
+<g class="i" stroke="#ef5350"><circle cx="50" cy="50" r="34"/><path d="M17 46h21m24 0h21"/><circle cx="50" cy="46" r="12"/></g>
+<!-- Ultra Ball -->
+<g class="i" stroke="#f6c945"><path d="M17 48a34 34 0 1 0 66 0"/><path d="M17 48h21m24 0h21"/><circle cx="50" cy="48" r="12"/><path d="M22 35 34 17h32l12 18M35 18l15 18 15-18"/></g>
+<!-- Pikachu -->
+<g class="i" stroke="#ffd84a"><path d="M222 76c-14-8-20-22-17-39l-9-24 22 15c7-5 17-5 24 0l22-15-9 24c3 17-3 31-17 39-5 3-11 5-16 5s-11-2-16-5z"/><circle cx="219" cy="51" r="2" fill="#ffd84a"/><circle cx="241" cy="51" r="2" fill="#ffd84a"/><path d="m226 63 4 3 4-3"/></g>
+<!-- Mewtwo -->
+<g class="i" stroke="#b785f4"><path d="M326 77c-13-9-19-26-13-41 4-10 12-17 22-19l15 12 15-12c10 2 18 9 22 19 6 15 0 32-13 41-13 9-35 9-48 0z"/><path d="M326 26 316 8m58 18 10-18M337 52l-7 4m33-4 7 4M344 65h12"/></g>
+<!-- Electric -->
+<g class="i" stroke="#ffe45c"><circle cx="450" cy="50" r="35"/><path d="m456 15-24 39h17l-7 31 27-42h-18z"/></g>
+<!-- Water -->
+<g class="i" stroke="#55b7ff"><circle cx="550" cy="50" r="35"/><path d="M550 20c-8 14-20 25-20 39a20 20 0 0 0 40 0c0-14-12-25-20-39z"/></g>
+<!-- Fire -->
+<g class="i" stroke="#ff715b"><circle cx="650" cy="50" r="35"/><path d="M651 19c5 17-10 20-5 32 4-7 10-8 12-17 10 9 16 22 10 34-7 15-29 16-37 2-9-17 5-29 20-51z"/></g>
+<!-- Grass -->
+<g class="i" stroke="#63d47d"><circle cx="750" cy="50" r="35"/><path d="M724 66c2-27 19-43 52-42-1 31-19 47-52 42z"/><path d="m729 62 38-30"/></g>
+</svg>
