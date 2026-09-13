@@ -119,6 +119,8 @@ func _build_ui() -> void:
 
 	var build_label := Label.new()
 	build_label.text = BUILD_INFO.LABEL
+	build_label.z_index = 100
+	build_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	build_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	build_label.add_theme_font_size_override("font_size", 12)
 	build_label.add_theme_color_override("font_color", Color("#8290ad"))
