@@ -70,6 +70,7 @@ var pokedex_data: Dictionary = {}
 
 var recent_rows: Array[HBoxContainer] = []
 var letter_label: Label
+var current_row: HBoxContainer
 var recent_list: VBoxContainer
 var hint_label: Label
 var entry: LineEdit
@@ -155,7 +156,7 @@ func _build_ui() -> void:
 	progress_label.add_theme_font_size_override("font_size", 16)
 	layout.add_child(progress_label)
 
-	var current_row := HBoxContainer.new()
+	current_row = HBoxContainer.new()
 	current_row.custom_minimum_size = Vector2(0, 92)
 	current_row.add_theme_constant_override("separation", 12)
 	layout.add_child(current_row)
@@ -1312,7 +1313,7 @@ func _ask_give_up() -> void:
 
 
 func _confirm_stumped() -> void:
-	_end_run("Gave up!")
+	_end_run("You made it to %s." % LETTERS[letter_index])
 
 
 func _alphabet_count_text(count: int) -> String:
@@ -1327,8 +1328,10 @@ func _end_run(reason: String) -> void:
 	entry.visible = false
 	stumped_button.visible = false
 	hint_button.visible = false
+	current_row.visible = false
 	answers_scroll.visible = true
 	suggestions_scroll.visible = true
+	current_row.get_parent().move_child(suggestions_scroll, current_row.get_index())
 	results_buttons.visible = true
 
 	for child in suggestions_grid.get_children():
@@ -1393,6 +1396,7 @@ func _reset_run() -> void:
 		child.queue_free()
 	completed_rounds_scroll.visible = false
 	entry.visible = true
+	current_row.visible = true
 	stumped_button.visible = true
 	hint_button.visible = true
 	_update_hint_button()
