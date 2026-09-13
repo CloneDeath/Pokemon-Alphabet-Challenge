@@ -3,6 +3,7 @@ extends Control
 const LETTERS := "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 const POKEAPI_URL := "https://pokeapi.co/api/v2/pokemon-species?limit=2000"
 const SPRITE_URL := "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/%d.png"
+const FONT_URL := "https://raw.githubusercontent.com/google/fonts/main/ofl/pixelifysans/PixelifySans%5Bwght%5D.ttf"
 const BUILD_INFO = preload("res://build_info.gd")
 
 var letter_index := 0
@@ -32,6 +33,7 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_update_grid_columns)
 	_update_grid_columns()
 	_update_screen()
+	_load_theme_font()
 	_load_pokemon_names()
 
 
@@ -122,7 +124,7 @@ func _build_ui() -> void:
 	input_row.add_child(entry)
 
 	stumped_button = Button.new()
-	stumped_button.text = "Give Up 😔"
+	stumped_button.text = "Give Up"
 	stumped_button.focus_mode = Control.FOCUS_NONE
 	stumped_button.add_theme_color_override("font_color", Color.WHITE)
 	stumped_button.add_theme_font_size_override("font_size", 16)
@@ -192,6 +194,30 @@ func _open_keyboard() -> void:
 		-1,
 		entry.caret_column
 	)
+
+
+func _load_theme_font() -> void:
+	var request := HTTPRequest.new()
+	add_child(request)
+	request.request_completed.connect(_on_theme_font_loaded.bind(request))
+	request.request(FONT_URL)
+
+
+func _on_theme_font_loaded(
+	_result: int,
+	response_code: int,
+	_headers: PackedStringArray,
+	body: PackedByteArray,
+	request: HTTPRequest
+) -> void:
+	request.queue_free()
+	if response_code != 200:
+		return
+	var pixel_font := FontFile.new()
+	pixel_font.data = body
+	var game_theme := Theme.new()
+	game_theme.default_font = pixel_font
+	theme = game_theme
 
 
 func _load_pokemon_names() -> void:
