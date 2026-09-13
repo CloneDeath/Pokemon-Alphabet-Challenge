@@ -64,7 +64,7 @@ var hints_remaining := 3
 var has_saved_run := false
 var has_high_score := false
 var high_score := 0
-var time_trial_unlocked := false
+var infinite_mode_unlocked := false
 var has_time_trial_best := false
 var time_trial_best := 0.0
 var game_mode := "challenge"
@@ -471,19 +471,19 @@ func _build_main_menu() -> void:
 	run_buttons.add_child(resume_button)
 
 	var start_button := Button.new()
-	start_button.text = "Start New"
+	start_button.text = "Time Trial"
 	start_button.custom_minimum_size = Vector2(0, 54)
 	start_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	start_button.add_theme_font_size_override("font_size", 17)
-	start_button.pressed.connect(_start_challenge)
+	start_button.pressed.connect(_start_time_trial)
 	run_buttons.add_child(start_button)
 
 	time_trial_button = Button.new()
-	time_trial_button.text = "Time Trial"
-	time_trial_button.visible = time_trial_unlocked
+	time_trial_button.text = "Infinite Mode"
+	time_trial_button.visible = infinite_mode_unlocked
 	time_trial_button.custom_minimum_size = Vector2(0, 50)
 	time_trial_button.add_theme_font_size_override("font_size", 18)
-	time_trial_button.pressed.connect(_start_time_trial)
+	time_trial_button.pressed.connect(_start_challenge)
 	menu.add_child(time_trial_button)
 
 	pokedex_button = Button.new()
@@ -546,7 +546,7 @@ func _show_main_menu() -> void:
 	pokedex_overlay.visible = false
 	menu_overlay.visible = true
 	pokedex_button.visible = not pokedex_data.is_empty()
-	time_trial_button.visible = time_trial_unlocked
+	time_trial_button.visible = infinite_mode_unlocked
 	resume_button.visible = has_saved_run
 	resume_button.disabled = not validation_ready
 
@@ -702,7 +702,7 @@ func _load_stats() -> void:
 	if data.has("high_score"):
 		high_score = int(data.high_score)
 		has_high_score = true
-	time_trial_unlocked = bool(data.get("time_trial_unlocked", false))
+	infinite_mode_unlocked = bool(data.get("infinite_mode_unlocked", false))
 	if data.has("time_trial_best"):
 		time_trial_best = float(data.time_trial_best)
 		has_time_trial_best = true
@@ -711,7 +711,7 @@ func _load_stats() -> void:
 func _save_stats() -> void:
 	var data := {
 		"high_score": high_score,
-		"time_trial_unlocked": time_trial_unlocked
+		"infinite_mode_unlocked": infinite_mode_unlocked
 	}
 	if has_time_trial_best:
 		data["time_trial_best"] = time_trial_best
@@ -1062,9 +1062,6 @@ func _animate_shiny_name(label: Label) -> void:
 
 
 func _complete_round_display() -> void:
-	if not time_trial_unlocked:
-		time_trial_unlocked = true
-		_save_stats()
 	hints_remaining = mini(3, hints_remaining + 1)
 	_update_hint_button()
 	var snapshot: Array = current_round_entries.duplicate(true)
@@ -1471,6 +1468,9 @@ func _confirm_stumped() -> void:
 
 func _finish_time_trial() -> void:
 	elapsed_time = Time.get_unix_time_from_system() - time_trial_started_at
+	if not infinite_mode_unlocked:
+		infinite_mode_unlocked = true
+		_save_stats()
 	_end_run("Finished!", true)
 
 
