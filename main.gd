@@ -7,6 +7,7 @@ const SHINY_SPRITE_URL := "https://raw.githubusercontent.com/PokeAPI/sprites/mas
 const FONT_URL := "https://raw.githubusercontent.com/google/fonts/main/ofl/fredoka/Fredoka%5Bwdth%2Cwght%5D.ttf"
 const SAVE_PATH := "user://pokedex.json"
 const ACTIVE_RUN_PATH := "user://active_run.json"
+const STATS_PATH := "user://stats.json"
 const STARTER_NAMES := {
 	"bulbasaur": true, "charmander": true, "squirtle": true,
 	"chikorita": true, "cyndaquil": true, "totodile": true,
@@ -61,7 +62,10 @@ var run_over := false
 var run_saved := false
 var hints_remaining := 3
 var has_saved_run := false
+var has_high_score := false
+var high_score := 0
 var active_hint_text := ""
+var active_hint_pokemon := ""
 var current_run_names: Array[String] = []
 var current_run_shinies: Dictionary = {}
 var current_round_entries: Array[Dictionary] = []
@@ -102,6 +106,7 @@ var pokedex_grids: Array[GridContainer] = []
 
 func _ready() -> void:
 	_load_save()
+	_load_stats()
 	_load_active_run()
 	_build_ui()
 	get_viewport().size_changed.connect(_update_grid_columns)
@@ -228,6 +233,8 @@ func _build_ui() -> void:
 	entry.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	entry.add_theme_font_size_override("font_size", 20)
 	entry.keep_editing_on_text_submit = true
+	entry.caret_blink = true
+	entry.caret_blink_interval = 0.55
 	entry.text_submitted.connect(_submit_answer)
 	entry.gui_input.connect(_on_entry_gui_input)
 	input_row.add_child(entry)
@@ -610,6 +617,24 @@ func _load_save() -> void:
 		pokedex_data = parsed
 
 
+func _load_stats() -> void:
+	if not FileAccess.file_exists(STATS_PATH):
+		return
+	var file := FileAccess.open(STATS_PATH, FileAccess.READ)
+	if file == null:
+		return
+	var data = JSON.parse_string(file.get_as_text())
+	if typeof(data) == TYPE_DICTIONARY and data.has("high_score"):
+		high_score = int(data.high_score)
+		has_high_score = true
+
+
+func _save_stats() -> void:
+	var file := FileAccess.open(STATS_PATH, FileAccess.WRITE)
+	if file != null:
+		file.store_string(JSON.stringify({"high_score": high_score}))
+
+
 func _load_active_run() -> void:
 	if not FileAccess.file_exists(ACTIVE_RUN_PATH):
 		return
@@ -623,6 +648,7 @@ func _load_active_run() -> void:
 	rounds_completed = int(data.get("rounds_completed", 0))
 	hints_remaining = int(data.get("hints_remaining", 3))
 	active_hint_text = String(data.get("active_hint_text", ""))
+	active_hint_pokemon = String(data.get("active_hint_pokemon", ""))
 	used_names = Dictionary(data.get("used_names", {}))
 	current_run_shinies = Dictionary(data.get("current_run_shinies", {}))
 	for value in data.get("answers", []):
@@ -644,6 +670,7 @@ func _save_active_run() -> void:
 		"rounds_completed": rounds_completed,
 		"hints_remaining": hints_remaining,
 		"active_hint_text": active_hint_text,
+		"active_hint_pokemon": active_hint_pokemon,
 		"answers": answers,
 		"used_names": used_names,
 		"current_run_names": current_run_names,
@@ -811,6 +838,7 @@ func _submit_answer(raw_answer: String) -> void:
 	entry.clear()
 	status_label.visible = false
 	active_hint_text = ""
+	active_hint_pokemon = ""
 	hint_label.text = ""
 	hint_label.scale = Vector2.ONE
 	hint_label.modulate.a = 1.0
@@ -1237,6 +1265,7 @@ func _use_hint() -> void:
 	if possible.is_empty():
 		return
 	var candidate := _pick_hint_candidate(possible)
+	active_hint_pokemon = candidate
 	hints_remaining -= 1
 	_update_hint_button()
 	_save_active_run()
@@ -1337,7 +1366,12 @@ func _end_run(reason: String) -> void:
 	for child in suggestions_grid.get_children():
 		child.queue_free()
 	var possible := _available_names_for_letter(LETTERS[letter_index])
+	if not active_hint_pokemon.is_empty() and possible.has(active_hint_pokemon):
+		possible.erase(active_hint_pokemon)
+		possible.push_front(active_hint_pokemon)
 	suggestions_label.text = "Possible %s answers" % LETTERS[letter_index]
+	if not active_hint_text.is_empty():
+		suggestions_label.text = "%s\n%s" % [active_hint_text, suggestions_label.text]
 	if possible.is_empty():
 		suggestions_label.text = "No unused answers remained."
 	for index in range(mini(3, possible.size())):
@@ -1360,14 +1394,24 @@ func _end_run(reason: String) -> void:
 		answer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		answer_label.add_theme_font_size_override("font_size", 14)
 		card.add_child(answer_label)
+	var is_new_best := has_high_score and answers.size() > high_score
+	if not has_high_score or answers.size() > high_score:
+		high_score = answers.size()
+		has_high_score = true
+		_save_stats()
 	status_label.text = "%s  •  %s  •  %d Pokémon" % [reason, _alphabet_count_text(rounds_completed), answers.size()]
+	if is_new_best:
+		status_label.text += "  (Best!)"
 	status_label.visible = true
 	_update_screen()
 
 
 func _update_screen() -> void:
 	status_label.remove_theme_color_override("font_color")
-	progress_label.text = "Alphabet %d  •  %d / 26" % [rounds_completed + 1, letter_index]
+	if rounds_completed == 0:
+		progress_label.text = "%d / 26" % letter_index
+	else:
+		progress_label.text = "Alphabet %d  •  %d / 26" % [rounds_completed + 1, letter_index]
 	letter_label.text = LETTERS[letter_index]
 	if not run_over:
 		_update_hint_button()
@@ -1380,6 +1424,7 @@ func _reset_run() -> void:
 	run_saved = false
 	hints_remaining = 3
 	active_hint_text = ""
+	active_hint_pokemon = ""
 	current_run_names.clear()
 	current_run_shinies.clear()
 	current_round_entries.clear()
