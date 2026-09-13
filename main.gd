@@ -2013,11 +2013,11 @@ func _medal_color(name: String) -> Color:
 
 
 func _medal_texture(name: String) -> AtlasTexture:
-	var medal_index := {
+	var medal_index: int = int({
 		"Sapphire": 0, "Ruby": 1, "Emerald": 2, "Silver": 3,
 		"Gold": 4, "Crystal": 5, "Pearl": 6, "Diamond": 7,
 		"Platinum": 8, "Participation": 9
-	}.get(name, 9)
+	}.get(name, 9))
 	var texture := AtlasTexture.new()
 	texture.atlas = MEDAL_ART
 	texture.region = Rect2(float(medal_index) * 100.0, 0, 100, 100)
