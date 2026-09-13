@@ -697,15 +697,27 @@ func _load_stats() -> void:
 	if file == null:
 		return
 	var data = JSON.parse_string(file.get_as_text())
-	if typeof(data) == TYPE_DICTIONARY and data.has("high_score"):
+	if typeof(data) != TYPE_DICTIONARY:
+		return
+	if data.has("high_score"):
 		high_score = int(data.high_score)
 		has_high_score = true
+	time_trial_unlocked = bool(data.get("time_trial_unlocked", false))
+	if data.has("time_trial_best"):
+		time_trial_best = float(data.time_trial_best)
+		has_time_trial_best = true
 
 
 func _save_stats() -> void:
+	var data := {
+		"high_score": high_score,
+		"time_trial_unlocked": time_trial_unlocked
+	}
+	if has_time_trial_best:
+		data["time_trial_best"] = time_trial_best
 	var file := FileAccess.open(STATS_PATH, FileAccess.WRITE)
 	if file != null:
-		file.store_string(JSON.stringify({"high_score": high_score}))
+		file.store_string(JSON.stringify(data))
 
 
 func _load_active_run() -> void:
@@ -720,6 +732,10 @@ func _load_active_run() -> void:
 	letter_index = int(data.get("letter_index", 0))
 	rounds_completed = int(data.get("rounds_completed", 0))
 	hints_remaining = int(data.get("hints_remaining", 3))
+	game_mode = String(data.get("game_mode", "challenge"))
+	time_trial_started_at = float(data.get("time_trial_started_at", 0.0))
+	if game_mode == "time_trial" and time_trial_started_at > 0.0:
+		elapsed_time = Time.get_unix_time_from_system() - time_trial_started_at
 	active_hint_text = String(data.get("active_hint_text", ""))
 	active_hint_pokemon = String(data.get("active_hint_pokemon", ""))
 	used_names = Dictionary(data.get("used_names", {}))
@@ -742,6 +758,8 @@ func _save_active_run() -> void:
 		"letter_index": letter_index,
 		"rounds_completed": rounds_completed,
 		"hints_remaining": hints_remaining,
+		"game_mode": game_mode,
+		"time_trial_started_at": time_trial_started_at,
 		"active_hint_text": active_hint_text,
 		"active_hint_pokemon": active_hint_pokemon,
 		"answers": answers,
@@ -920,6 +938,9 @@ func _submit_answer(raw_answer: String) -> void:
 		rounds_completed += 1
 		_complete_round_display()
 		letter_index = 0
+		if game_mode == "time_trial":
+			_finish_time_trial()
+			return
 	_skip_unavailable_letters()
 	_update_screen()
 	_save_active_run()
@@ -939,6 +960,9 @@ func _skip_unavailable_letters() -> void:
 			rounds_completed += 1
 			_complete_round_display()
 			letter_index = 0
+			if game_mode == "time_trial":
+				_finish_time_trial()
+				return
 	if checked >= LETTERS.length():
 		_end_run("You used every available Pokémon!")
 
@@ -1015,6 +1039,9 @@ func _animate_shiny_name(label: Label) -> void:
 
 
 func _complete_round_display() -> void:
+	if not time_trial_unlocked:
+		time_trial_unlocked = true
+		_save_stats()
 	hints_remaining = mini(3, hints_remaining + 1)
 	_update_hint_button()
 	var snapshot: Array = current_round_entries.duplicate(true)
@@ -1415,7 +1442,12 @@ func _ask_give_up() -> void:
 
 
 func _confirm_stumped() -> void:
-	_end_run("You made it to %s" % LETTERS[letter_index])
+	_end_run("You made it to %s" % LETTERS[letter_index], false)
+
+
+func _finish_time_trial() -> void:
+	elapsed_time = Time.get_unix_time_from_system() - time_trial_started_at
+	_end_run("Finished!", true)
 
 
 func _alphabet_count_text(count: int) -> String:
@@ -1513,6 +1545,8 @@ func _reset_run() -> void:
 	for child in completed_rounds_grid.get_children():
 		child.queue_free()
 	completed_rounds_scroll.visible = false
+	timer_label.visible = game_mode == "time_trial"
+	medal_label.visible = false
 	entry.visible = true
 	current_row.visible = true
 	stumped_button.visible = true
