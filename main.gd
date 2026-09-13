@@ -53,6 +53,7 @@ const MYTHICAL_NAMES := {
 const BUILD_INFO = preload("res://build_info.gd")
 const POKEMON_LOGO = preload("res://assets/pokemon-logo.png")
 const GEAR_ICON = preload("res://assets/gear.svg")
+const BACKGROUND_ICONS = preload("res://assets/background-icons.svg")
 
 var letter_index := 0
 var rounds_completed := 0
@@ -79,6 +80,10 @@ var current_run_shinies: Dictionary = {}
 var current_round_entries: Array[Dictionary] = []
 var completed_round_entries: Array = []
 var pokedex_data: Dictionary = {}
+var background_time := 0.0
+var background_icons: Array[TextureRect] = []
+var background_positions: Array[Vector2] = []
+var background_phases: Array[float] = []
 
 var recent_rows: Array[HBoxContainer] = []
 var letter_label: Label
@@ -131,7 +136,9 @@ func _ready() -> void:
 	_show_main_menu()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	background_time += delta
+	_animate_background_icons()
 	if game_mode == "time_trial" and not run_over and is_instance_valid(game_margin) and game_margin.visible:
 		elapsed_time = Time.get_unix_time_from_system() - time_trial_started_at
 		_update_timer_label()
@@ -148,11 +155,81 @@ func _update_timer_label() -> void:
 		timer_label.text = _format_time(elapsed_time)
 
 
-func _build_ui() -> void:
+func _build_background() -> void:
 	var background := ColorRect.new()
-	background.color = Color("#09142d")
+	background.color = Color("#020306")
+	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(background)
+
+	var gradient := Gradient.new()
+	gradient.colors = PackedColorArray([
+		Color("#020306"),
+		Color("#080d1b"),
+		Color("#03050b")
+	])
+	gradient.offsets = PackedFloat32Array([0.0, 0.52, 1.0])
+	var gradient_texture := GradientTexture2D.new()
+	gradient_texture.gradient = gradient
+	gradient_texture.fill_from = Vector2(0.08, 0.0)
+	gradient_texture.fill_to = Vector2(0.92, 1.0)
+
+	var gradient_rect := TextureRect.new()
+	gradient_rect.texture = gradient_texture
+	gradient_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	gradient_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gradient_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(gradient_rect)
+
+	var specs := [
+		[0, Vector2(0.08, 0.12), 64.0, 0.],
+		[4, Vector2(0.82, 0.09), 50.0, 0.],
+		[2, Vector2(0.72, 0.26), 72.0, 1.10],
+		[6, Vector2(0.12, 0.34), 48.0, 1.65],
+		[1, Vector2(0.88, 0.48), 62.0, 2.20],
+		[7, Vector2(0.16, 0.60), 54.0, 2.75],
+		[3, Vector2(0.76, 0.70), 76.0, 3.30],
+		[5, Vector2(0.10, 0.83), 52.0, 3.85],
+		[0, Vector2(0.88, 0.91), 58.0, 4.40]
+	]
+	for spec in specs:
+		var atlas := AtlasTexture.new()
+		atlas.atlas = BACKGROUND_ICONS
+		atlas.region = Rect2(float(spec[0]) * 100.0, 0, 100, 100)
+
+		var icon := TextureRect.new()
+		var icon_size := float(spec[2])
+		icon.texture = atlas
+		icon.size = Vector2(icon_size, icon_size)
+		icon.pivot_offset = icon.size * 0.5
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.modulate.a = 0.13
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(icon)
+		background_icons.append(icon)
+		background_positions.append(spec[1])
+		background_phases.append(float(spec[3]))
+	_animate_background_icons()
+
+
+func _animate_background_icons() -> void:
+	if background_icons.is_empty():
+		return
+	var viewport_size := get_viewport_rect().size
+	for index in range(background_icons.size()):
+		var icon := background_icons[index]
+		var base := background_positions[index] * viewport_size - icon.size * 0.5
+		var phase := background_phases[index]
+		icon.position = base + Vector2(
+			sin(background_time * 0.22 + phase) * 7.0,
+			cos(background_time * 0.28 + phase) * 10.0
+		)
+		icon.rotation = sin(background_time * 0.12 + phase) * 0.055
+
+
+func _build_ui() -> void:
+	_build_background()
 
 	var build_label := Label.new()
 	build_label.text = BUILD_INFO.LABEL
@@ -451,7 +528,7 @@ func _build_main_menu() -> void:
 	add_child(menu_overlay)
 
 	var background := ColorRect.new()
-	background.color = Color("#09142d")
+	background.color = Color("#03060dc7")
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	menu_overlay.add_child(background)
 
@@ -681,7 +758,7 @@ func _build_pokedex_screen() -> void:
 	add_child(pokedex_overlay)
 
 	var background := ColorRect.new()
-	background.color = Color("#09142d")
+	background.color = Color("#03060dc7")
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	pokedex_overlay.add_child(background)
 
