@@ -18,6 +18,10 @@ const STARTER_NAMES := {
 	"grookey": true, "scorbunny": true, "sobble": true,
 	"sprigatito": true, "fuecoco": true, "quaxly": true
 }
+const EEVEELUTIONS := {
+	"vaporeon": true, "jolteon": true, "flareon": true, "espeon": true,
+	"umbreon": true, "leafeon": true, "glaceon": true, "sylveon": true
+}
 const STARTER_DESCENDANTS := {
 	"ivysaur": true, "venusaur": true, "charmeleon": true, "charizard": true, "wartortle": true, "blastoise": true,
 	"bayleef": true, "meganium": true, "quilava": true, "typhlosion": true, "croconaw": true, "feraligatr": true,
@@ -1179,7 +1183,9 @@ func _use_hint() -> void:
 	_update_hint_button()
 	_save_active_run()
 
-	if STARTER_NAMES.has(candidate):
+	if EEVEELUTIONS.has(candidate):
+		_show_hint("It's an Eeveelution.")
+	elif STARTER_NAMES.has(candidate):
 		_show_hint("It's a starter.")
 	elif STARTER_DESCENDANTS.has(candidate):
 		_show_hint("It evolves from a starter.")
@@ -1196,7 +1202,7 @@ func _use_hint() -> void:
 
 
 func _pick_hint_candidate(possible: Array[String]) -> String:
-	for category in [STARTER_NAMES, STARTER_DESCENDANTS, LEGENDARY_NAMES, MYTHICAL_NAMES]:
+	for category in [EEVEELUTIONS, STARTER_NAMES, STARTER_DESCENDANTS, LEGENDARY_NAMES, MYTHICAL_NAMES]:
 		for candidate in possible:
 			if category.has(candidate):
 				return candidate
