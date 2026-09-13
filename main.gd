@@ -4,7 +4,7 @@ const LETTERS := "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 const POKEAPI_URL := "https://pokeapi.co/api/v2/pokemon-species?limit=2000"
 const SPRITE_URL := "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/%d.png"
 const SHINY_SPRITE_URL := "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/%d.png"
-const FONT_URL := "https://raw.githubusercontent.com/google/fonts/main/ofl/comicneue/ComicNeue-Regular.ttf"
+const FONT_URL := "https://raw.githubusercontent.com/google/fonts/main/ofl/fredoka/Fredoka%5Bwdth%2Cwght%5D.ttf"
 const SAVE_PATH := "user://pokedex.json"
 const BUILD_INFO = preload("res://build_info.gd")
 
@@ -559,10 +559,17 @@ func _add_answer_card(display_name: String, api_name: String) -> void:
 	while recent_rows.size() > 3:
 		var oldest := recent_rows.pop_front()
 		oldest.queue_free()
+	_update_recent_opacity()
 
 	var shiny := randi_range(1, 4096) == 1
 	_load_sprite(api_name, compact_sprite, true, shiny)
 	_load_sprite(api_name, recent_sprite, false, shiny)
+
+
+func _update_recent_opacity() -> void:
+	for index in range(recent_rows.size()):
+		var age := recent_rows.size() - 1 - index
+		recent_rows[index].modulate.a = [1.0, 0.65, 0.4][age]
 
 
 func _load_sprite(api_name: String, target: TextureRect, animate: bool, shiny: bool) -> void:
