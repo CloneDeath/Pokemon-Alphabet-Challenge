@@ -77,6 +77,7 @@ var completed_rounds_scroll: ScrollContainer
 var completed_rounds_grid: HBoxContainer
 var suggestions_scroll: ScrollContainer
 var suggestions_label: Label
+var suggestions_grid: HBoxContainer
 var stumped_button: Button
 var hint_button: Button
 var info_popup: Label
@@ -261,16 +262,26 @@ func _build_ui() -> void:
 
 	suggestions_scroll = ScrollContainer.new()
 	suggestions_scroll.visible = false
-	suggestions_scroll.custom_minimum_size = Vector2(0, 74)
+	suggestions_scroll.custom_minimum_size = Vector2(0, 112)
 	suggestions_scroll.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	suggestions_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	layout.add_child(suggestions_scroll)
 
+	var suggestions_layout := VBoxContainer.new()
+	suggestions_layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	suggestions_layout.add_theme_constant_override("separation", 4)
+	suggestions_scroll.add_child(suggestions_layout)
+
 	suggestions_label = Label.new()
 	suggestions_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	suggestions_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	suggestions_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	suggestions_label.add_theme_font_size_override("font_size", 15)
-	suggestions_scroll.add_child(suggestions_label)
+	suggestions_layout.add_child(suggestions_label)
+
+	suggestions_grid = HBoxContainer.new()
+	suggestions_grid.alignment = BoxContainer.ALIGNMENT_CENTER
+	suggestions_grid.add_theme_constant_override("separation", 10)
+	suggestions_layout.add_child(suggestions_grid)
 
 	# Keep controls above content that the phone keyboard may cover.
 	layout.move_child(input_row, 2)
@@ -1255,12 +1266,32 @@ func _end_run(reason: String) -> void:
 	suggestions_scroll.visible = true
 	results_buttons.visible = true
 
+	for child in suggestions_grid.get_children():
+		child.queue_free()
 	var possible := _available_names_for_letter(LETTERS[letter_index])
-	var pretty: Array[String] = []
+	suggestions_label.text = "Possible %s answers" % LETTERS[letter_index]
+	if possible.is_empty():
+		suggestions_label.text = "No unused answers remained."
 	for index in range(mini(3, possible.size())):
-		pretty.append(_pretty_name(possible[index]))
-	var answer_text := ", ".join(pretty) if not pretty.is_empty() else "No unused answers remained."
-	suggestions_label.text = "Possible %s answers:\n%s" % [LETTERS[letter_index], answer_text]
+		var api_name := possible[index]
+		var card := VBoxContainer.new()
+		card.custom_minimum_size = Vector2(82, 82)
+		card.alignment = BoxContainer.ALIGNMENT_CENTER
+		suggestions_grid.add_child(card)
+
+		var sprite := TextureRect.new()
+		sprite.custom_minimum_size = Vector2(62, 62)
+		sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		card.add_child(sprite)
+		_load_sprite(api_name, sprite, false, false)
+
+		var answer_label := Label.new()
+		answer_label.text = _pretty_name(api_name)
+		answer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		answer_label.add_theme_font_size_override("font_size", 14)
+		card.add_child(answer_label)
 	status_label.text = "%s  %s, %d Pokémon." % [reason, _alphabet_count_text(rounds_completed), answers.size()]
 	status_label.visible = true
 	_update_screen()
