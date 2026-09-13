@@ -67,12 +67,18 @@ var hints_remaining := 3
 var has_saved_run := false
 var has_high_score := false
 var high_score := 0
+var infinite_best_alphabets := 0
 var infinite_mode_unlocked := false
 var has_time_trial_best := false
 var time_trial_best := 0.0
+var time_attack_unlocked := false
+var has_time_attack_high_score := false
+var time_attack_high_score := 0
+var time_attack_best_alphabets := 0
 var game_mode := "challenge"
 var time_trial_started_at := 0.0
 var elapsed_time := 0.0
+var time_attack_remaining := 60.0
 var active_hint_text := ""
 var active_hint_pokemon := ""
 var current_run_names: Array[String] = []
@@ -116,7 +122,12 @@ var menu_overlay: Control
 var pokedex_overlay: Control
 var pokedex_button: Button
 var resume_button: Button
+var start_button: Button
+var time_attack_button: Button
 var time_trial_button: Button
+var time_trial_score_label: Label
+var time_attack_score_label: Label
+var infinite_score_label: Label
 var restore_dialog: FileDialog
 var settings_popup: PopupPanel
 var pokedex_list: VBoxContainer
@@ -142,6 +153,11 @@ func _process(delta: float) -> void:
 	if game_mode == "time_trial" and not run_over and is_instance_valid(game_margin) and game_margin.visible:
 		elapsed_time = Time.get_unix_time_from_system() - time_trial_started_at
 		_update_timer_label()
+	elif game_mode == "time_attack" and not run_over and is_instance_valid(game_margin) and game_margin.visible:
+		time_attack_remaining = maxf(0.0, time_attack_remaining - delta)
+		_update_timer_label()
+		if time_attack_remaining <= 0.0:
+			_end_run("Time's up!")
 
 
 func _format_time(seconds: float) -> String:
@@ -152,7 +168,7 @@ func _format_time(seconds: float) -> String:
 
 func _update_timer_label() -> void:
 	if is_instance_valid(timer_label):
-		timer_label.text = _format_time(elapsed_time)
+		timer_label.text = _format_time(time_attack_remaining if game_mode == "time_attack" else elapsed_time)
 
 
 func _build_background() -> void:
@@ -562,10 +578,6 @@ func _build_main_menu() -> void:
 	subtitle.add_theme_constant_override("outline_size", 5)
 	brand.add_child(subtitle)
 
-	var run_buttons := HBoxContainer.new()
-	run_buttons.add_theme_constant_override("separation", 8)
-	menu.add_child(run_buttons)
-
 	resume_button = Button.new()
 	resume_button.text = "Resume"
 	resume_button.visible = has_saved_run
@@ -574,23 +586,55 @@ func _build_main_menu() -> void:
 	resume_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	resume_button.add_theme_font_size_override("font_size", 17)
 	resume_button.pressed.connect(_resume_challenge)
-	run_buttons.add_child(resume_button)
+	menu.add_child(resume_button)
 
-	var start_button := Button.new()
-	start_button.text = "Time Trial" if infinite_mode_unlocked else "Begin"
+	var time_trial_row := HBoxContainer.new()
+	time_trial_row.add_theme_constant_override("separation", 8)
+	menu.add_child(time_trial_row)
+
+	start_button = Button.new()
+	start_button.text = "Time Trial" if time_attack_unlocked else "Begin"
 	start_button.custom_minimum_size = Vector2(0, 54)
 	start_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	start_button.add_theme_font_size_override("font_size", 17)
 	start_button.pressed.connect(_start_time_trial)
-	run_buttons.add_child(start_button)
+	time_trial_row.add_child(start_button)
+
+	time_trial_score_label = _create_menu_score_label()
+	time_trial_row.add_child(time_trial_score_label)
+
+	var time_attack_row := HBoxContainer.new()
+	time_attack_row.add_theme_constant_override("separation", 8)
+	time_attack_row.visible = time_attack_unlocked
+	menu.add_child(time_attack_row)
+
+	time_attack_button = Button.new()
+	time_attack_button.text = "Time Attack"
+	time_attack_button.custom_minimum_size = Vector2(0, 50)
+	time_attack_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	time_attack_button.add_theme_font_size_override("font_size", 18)
+	time_attack_button.pressed.connect(_start_time_attack)
+	time_attack_row.add_child(time_attack_button)
+
+	time_attack_score_label = _create_menu_score_label()
+	time_attack_row.add_child(time_attack_score_label)
+
+	var infinite_row := HBoxContainer.new()
+	infinite_row.add_theme_constant_override("separation", 8)
+	infinite_row.visible = infinite_mode_unlocked
+	menu.add_child(infinite_row)
 
 	time_trial_button = Button.new()
 	time_trial_button.text = "Infinite Mode"
 	time_trial_button.visible = infinite_mode_unlocked
 	time_trial_button.custom_minimum_size = Vector2(0, 50)
+	time_trial_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	time_trial_button.add_theme_font_size_override("font_size", 18)
 	time_trial_button.pressed.connect(_start_challenge)
-	menu.add_child(time_trial_button)
+	infinite_row.add_child(time_trial_button)
+
+	infinite_score_label = _create_menu_score_label()
+	infinite_row.add_child(infinite_score_label)
 
 	pokedex_button = Button.new()
 	pokedex_button.text = "Pokédex"
@@ -675,6 +719,18 @@ func _build_main_menu() -> void:
 	restore_dialog.filters = PackedStringArray(["*.json ; Pokémon Alphabet Save"])
 	restore_dialog.file_selected.connect(_restore_save)
 	add_child(restore_dialog)
+	_refresh_main_menu()
+
+
+func _create_menu_score_label() -> Label:
+	var label := Label.new()
+	label.custom_minimum_size = Vector2(116, 0)
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.add_theme_font_size_override("font_size", 11)
+	label.add_theme_color_override("font_color", Color("#aebbd4"))
+	return label
 
 
 func _show_save_settings() -> void:
@@ -696,10 +752,15 @@ func _confirm_delete_save() -> void:
 func _stats_data() -> Dictionary:
 	var data := {
 		"high_score": high_score,
-		"infinite_mode_unlocked": infinite_mode_unlocked
+		"infinite_best_alphabets": infinite_best_alphabets,
+		"infinite_mode_unlocked": infinite_mode_unlocked,
+		"time_attack_unlocked": time_attack_unlocked,
+		"time_attack_best_alphabets": time_attack_best_alphabets
 	}
 	if has_time_trial_best:
 		data["time_trial_best"] = time_trial_best
+	if has_time_attack_high_score:
+		data["time_attack_high_score"] = time_attack_high_score
 	return data
 
 
@@ -804,9 +865,27 @@ func _show_main_menu() -> void:
 	pokedex_overlay.visible = false
 	menu_overlay.visible = true
 	pokedex_button.visible = not pokedex_data.is_empty()
-	time_trial_button.visible = infinite_mode_unlocked
 	resume_button.visible = has_saved_run
 	resume_button.disabled = not validation_ready
+	_refresh_main_menu()
+
+
+func _refresh_main_menu() -> void:
+	if not is_instance_valid(start_button):
+		return
+	start_button.text = "Time Trial" if time_attack_unlocked else "Begin"
+	time_attack_button.get_parent().visible = time_attack_unlocked
+	time_trial_button.get_parent().visible = infinite_mode_unlocked
+	time_trial_button.visible = infinite_mode_unlocked
+	time_trial_score_label.text = "" if not has_time_trial_best else "%s\n%s" % [
+		_format_time(time_trial_best), _time_trial_medal_name(time_trial_best)
+	]
+	time_attack_score_label.text = "" if not has_time_attack_high_score else "%d Pokémon\n%s" % [
+		time_attack_high_score, _time_attack_medal_name(time_attack_best_alphabets)
+	]
+	infinite_score_label.text = "" if not has_high_score else "%d Pokémon\n%s" % [
+		high_score, _infinite_medal_name(infinite_best_alphabets)
+	]
 
 
 func _start_challenge() -> void:
@@ -835,9 +914,24 @@ func _start_time_trial() -> void:
 	_open_keyboard()
 
 
+func _start_time_attack() -> void:
+	game_mode = "time_attack"
+	_delete_active_run()
+	menu_overlay.visible = false
+	pokedex_overlay.visible = false
+	game_margin.visible = true
+	_reset_run()
+	time_attack_remaining = 60.0
+	timer_label.visible = true
+	_update_timer_label()
+	_open_keyboard()
+
+
 func _try_again() -> void:
 	if game_mode == "time_trial":
 		_start_time_trial()
+	elif game_mode == "time_attack":
+		_start_time_attack()
 	else:
 		_start_challenge()
 
@@ -856,7 +950,7 @@ func _resume_challenge() -> void:
 		_add_answer_card(String(data.display_name), String(data.name), bool(data.shiny), false)
 	_update_screen()
 	hint_label.text = active_hint_text
-	timer_label.visible = game_mode == "time_trial"
+	timer_label.visible = game_mode == "time_trial" or game_mode == "time_attack"
 	_update_timer_label()
 	_update_hint_button()
 	_open_keyboard()
@@ -960,10 +1054,16 @@ func _load_stats() -> void:
 	if data.has("high_score"):
 		high_score = int(data.high_score)
 		has_high_score = true
+	infinite_best_alphabets = int(data.get("infinite_best_alphabets", high_score / 26))
 	infinite_mode_unlocked = bool(data.get("infinite_mode_unlocked", false))
+	time_attack_unlocked = bool(data.get("time_attack_unlocked", infinite_mode_unlocked))
 	if data.has("time_trial_best"):
 		time_trial_best = float(data.time_trial_best)
 		has_time_trial_best = true
+	if data.has("time_attack_high_score"):
+		time_attack_high_score = int(data.time_attack_high_score)
+		has_time_attack_high_score = true
+	time_attack_best_alphabets = int(data.get("time_attack_best_alphabets", time_attack_high_score / 26))
 
 
 func _save_stats() -> void:
@@ -980,7 +1080,7 @@ func _load_active_run() -> void:
 	if typeof(data) != TYPE_DICTIONARY:
 		return
 	game_mode = String(data.get("game_mode", "challenge"))
-	if game_mode == "time_trial":
+	if game_mode == "time_trial" or game_mode == "time_attack":
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(ACTIVE_RUN_PATH))
 		game_mode = "challenge"
 		return
@@ -1006,7 +1106,7 @@ func _load_active_run() -> void:
 
 
 func _save_active_run() -> void:
-	if run_over or game_mode == "time_trial":
+	if run_over or game_mode == "time_trial" or game_mode == "time_attack":
 		return
 	var data := {
 		"letter_index": letter_index,
@@ -1200,6 +1300,8 @@ func _submit_answer(raw_answer: String) -> void:
 	current_round_entries.append({"name": api_name, "display_name": accepted_answer, "shiny": shiny})
 	answers.append(accepted_answer)
 	_add_answer_card(accepted_answer, api_name, shiny)
+	if game_mode == "time_attack":
+		time_attack_remaining += 2.0
 	letter_index += 1
 	entry.clear()
 	status_label.visible = false
@@ -1211,6 +1313,8 @@ func _submit_answer(raw_answer: String) -> void:
 
 	if letter_index >= LETTERS.length():
 		rounds_completed += 1
+		if game_mode == "time_attack":
+			time_attack_remaining += 4.0
 		_complete_round_display()
 		letter_index = 0
 		if game_mode == "time_trial":
@@ -1233,6 +1337,8 @@ func _skip_unavailable_letters() -> void:
 		checked += 1
 		if letter_index >= LETTERS.length():
 			rounds_completed += 1
+			if game_mode == "time_attack":
+				time_attack_remaining += 4.0
 			_complete_round_display()
 			letter_index = 0
 			if game_mode == "time_trial":
@@ -1724,8 +1830,8 @@ func _confirm_stumped() -> void:
 
 func _finish_time_trial() -> void:
 	elapsed_time = Time.get_unix_time_from_system() - time_trial_started_at
-	if not infinite_mode_unlocked:
-		infinite_mode_unlocked = true
+	if not time_attack_unlocked:
+		time_attack_unlocked = true
 		_save_stats()
 	_end_run("Finished!", true)
 
@@ -1735,16 +1841,85 @@ func _alphabet_count_text(count: int) -> String:
 
 
 func _time_trial_goal(seconds: float, completed: bool) -> String:
-	if not completed or seconds > 120.0:
-		return "Try to finish in under 2 minutes for Bronze!"
-	if seconds > 60.0:
-		return "Try to finish in under 60 seconds for Silver!"
-	if seconds > 26.0:
-		return "Try to finish in under 26 seconds for Gold!"
+	if not completed or seconds > 120.0: return "Finish in 120 seconds for Silver!"
+	if seconds > 90.0: return "Finish in 90 seconds for Gold!"
+	if seconds > 60.0: return "Finish in 60 seconds for Crystal!"
+	if seconds > 50.0: return "Finish in 50 seconds for Sapphire!"
+	if seconds > 45.0: return "Finish in 45 seconds for Ruby!"
+	if seconds > 40.0: return "Finish in 40 seconds for Emerald!"
+	if seconds > 35.0: return "Finish in 35 seconds for Pearl!"
+	if seconds > 30.0: return "Finish in 30 seconds for Diamond!"
+	if seconds > 26.0: return "Finish in 26 seconds for Platinum!"
 	return ""
 
 
-func _show_time_trial_medal(seconds: float) -> void:
+func _time_trial_medal_name(seconds: float) -> String:
+	if seconds <= 26.0: return "Platinum"
+	if seconds <= 30.0: return "Diamond"
+	if seconds <= 35.0: return "Pearl"
+	if seconds <= 40.0: return "Emerald"
+	if seconds <= 45.0: return "Ruby"
+	if seconds <= 50.0: return "Sapphire"
+	if seconds <= 60.0: return "Crystal"
+	if seconds <= 90.0: return "Gold"
+	if seconds <= 120.0: return "Silver"
+	return "Participation"
+
+
+func _time_attack_medal_name(alphabets: int) -> String:
+	if alphabets >= 10: return "Platinum"
+	if alphabets >= 8: return "Diamond"
+	if alphabets >= 7: return "Pearl"
+	if alphabets >= 6: return "Crystal"
+	if alphabets >= 5: return "Gold"
+	if alphabets >= 4: return "Silver"
+	if alphabets >= 3: return "Emerald"
+	if alphabets >= 2: return "Ruby"
+	if alphabets >= 1: return "Sapphire"
+	return "No medal"
+
+
+func _infinite_medal_name(alphabets: int) -> String:
+	if alphabets >= 135: return "Platinum"
+	if alphabets >= 50: return "Diamond"
+	if alphabets >= 40: return "Pearl"
+	if alphabets >= 30: return "Crystal"
+	if alphabets >= 20: return "Gold"
+	if alphabets >= 10: return "Silver"
+	if alphabets >= 7: return "Emerald"
+	if alphabets >= 5: return "Ruby"
+	if alphabets >= 3: return "Sapphire"
+	return "No medal"
+
+
+func _time_attack_goal(alphabets: int) -> String:
+	for goal in [[1, "Sapphire"], [2, "Ruby"], [3, "Emerald"], [4, "Silver"], [5, "Gold"], [6, "Crystal"], [7, "Pearl"], [8, "Diamond"], [10, "Platinum"]]:
+		if alphabets < int(goal[0]):
+			return "Reach %d %s for %s!" % [int(goal[0]), "alphabet" if int(goal[0]) == 1 else "alphabets", String(goal[1])]
+	return ""
+
+
+func _infinite_goal(alphabets: int) -> String:
+	for goal in [[3, "Sapphire"], [5, "Ruby"], [7, "Emerald"], [10, "Silver"], [20, "Gold"], [30, "Crystal"], [40, "Pearl"], [50, "Diamond"], [135, "Platinum"]]:
+		if alphabets < int(goal[0]):
+			return "Reach %d alphabets for %s!" % [int(goal[0]), String(goal[1])]
+	return ""
+
+
+func _medal_color(name: String) -> Color:
+	return {
+		"Platinum": Color("#d7e4eb"), "Diamond": Color("#67d8ef"),
+		"Pearl": Color("#efcfe8"), "Crystal": Color("#8ad9ff"),
+		"Gold": Color("#d7a900"), "Silver": Color("#7f91a5"),
+		"Emerald": Color("#36a66b"), "Ruby": Color("#bd4054"),
+		"Sapphire": Color("#356bc4"), "Participation": Color("#6d963f")
+	}.get(name, Color("#30486f"))
+
+
+func _show_medal(name: String) -> void:
+	if name == "No medal":
+		medal_label.visible = false
+		return
 	medal_label.visible = true
 	var medal_style := StyleBoxFlat.new()
 	medal_style.corner_radius_top_left = 12
@@ -1755,22 +1930,9 @@ func _show_time_trial_medal(seconds: float) -> void:
 	medal_style.content_margin_bottom = 8
 	medal_style.content_margin_left = 12
 	medal_style.content_margin_right = 12
-	if seconds <= 26.0:
-		medal_label.text = "GOLD MEDAL"
-		medal_style.bg_color = Color("#d7a900")
-		medal_label.add_theme_color_override("font_color", Color("#fff4b0"))
-	elif seconds <= 60.0:
-		medal_label.text = "SILVER MEDAL"
-		medal_style.bg_color = Color("#7f91a5")
-		medal_label.add_theme_color_override("font_color", Color("#f1f5f9"))
-	elif seconds <= 120.0:
-		medal_label.text = "BRONZE MEDAL"
-		medal_style.bg_color = Color("#a75b2a")
-		medal_label.add_theme_color_override("font_color", Color("#ffd0a4"))
-	else:
-		medal_label.text = "PARTICIPATION MEDAL"
-		medal_style.bg_color = Color("#6d963f")
-		medal_label.add_theme_color_override("font_color", Color("#d784e8"))
+	medal_label.text = "%s MEDAL" % name.to_upper()
+	medal_style.bg_color = _medal_color(name)
+	medal_label.add_theme_color_override("font_color", Color("#ffffff"))
 	medal_label.add_theme_stylebox_override("normal", medal_style)
 
 
@@ -1778,6 +1940,9 @@ func _end_run(reason: String, completed_time_trial: bool = false) -> void:
 	if game_mode == "time_trial":
 		elapsed_time = Time.get_unix_time_from_system() - time_trial_started_at
 		_update_timer_label()
+	elif game_mode == "time_attack" and not infinite_mode_unlocked:
+		infinite_mode_unlocked = true
+		_save_stats()
 	run_over = true
 	_save_current_run()
 	_delete_active_run()
@@ -1798,7 +1963,7 @@ func _end_run(reason: String, completed_time_trial: bool = false) -> void:
 	if game_mode == "time_trial":
 		var goal := _time_trial_goal(elapsed_time, completed_time_trial)
 		if completed_time_trial:
-			_show_time_trial_medal(elapsed_time)
+			_show_medal(_time_trial_medal_name(elapsed_time))
 			var is_new_best := has_time_trial_best and elapsed_time < time_trial_best
 			if not has_time_trial_best or elapsed_time < time_trial_best:
 				time_trial_best = elapsed_time
@@ -1811,13 +1976,27 @@ func _end_run(reason: String, completed_time_trial: bool = false) -> void:
 		else:
 			status_label.text = "%s  •  %s" % [reason, _format_time(elapsed_time)]
 			_populate_possible_answers(goal)
+	elif game_mode == "time_attack":
+		var is_new_best := has_time_attack_high_score and answers.size() > time_attack_high_score
+		if not has_time_attack_high_score or answers.size() > time_attack_high_score:
+			time_attack_high_score = answers.size()
+			has_time_attack_high_score = true
+		time_attack_best_alphabets = maxi(time_attack_best_alphabets, rounds_completed)
+		_save_stats()
+		_show_medal(_time_attack_medal_name(rounds_completed))
+		_populate_possible_answers(_time_attack_goal(rounds_completed))
+		status_label.text = "%s  •  %s  •  %d Pokémon" % [reason, _alphabet_count_text(rounds_completed), answers.size()]
+		if is_new_best:
+			status_label.text += "  (Best!)"
 	else:
-		_populate_possible_answers("")
+		_show_medal(_infinite_medal_name(rounds_completed))
+		_populate_possible_answers(_infinite_goal(rounds_completed))
 		var is_new_best := has_high_score and answers.size() > high_score
 		if not has_high_score or answers.size() > high_score:
 			high_score = answers.size()
 			has_high_score = true
-			_save_stats()
+		infinite_best_alphabets = maxi(infinite_best_alphabets, rounds_completed)
+		_save_stats()
 		status_label.text = "%s  •  %s  •  %d Pokémon" % [reason, _alphabet_count_text(rounds_completed), answers.size()]
 		if is_new_best:
 			status_label.text += "  (Best!)"
@@ -1895,7 +2074,7 @@ func _reset_run() -> void:
 	for child in completed_rounds_grid.get_children():
 		child.queue_free()
 	completed_rounds_scroll.visible = false
-	timer_label.visible = game_mode == "time_trial"
+	timer_label.visible = game_mode == "time_trial" or game_mode == "time_attack"
 	medal_label.visible = false
 	entry.visible = true
 	current_row.visible = true
