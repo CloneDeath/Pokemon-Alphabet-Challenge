@@ -793,6 +793,10 @@ func _submit_answer(raw_answer: String) -> void:
 	letter_index += 1
 	entry.clear()
 	status_label.visible = false
+	active_hint_text = ""
+	hint_label.text = ""
+	hint_label.scale = Vector2.ONE
+	hint_label.modulate.a = 1.0
 
 	if letter_index >= LETTERS.length():
 		rounds_completed += 1
@@ -1331,10 +1335,6 @@ func _update_screen() -> void:
 	progress_label.text = "Alphabet %d  •  %d / 26" % [rounds_completed + 1, letter_index]
 	letter_label.text = LETTERS[letter_index]
 	if not run_over:
-		active_hint_text = ""
-		hint_label.text = ""
-		hint_label.scale = Vector2.ONE
-		hint_label.modulate.a = 1.0
 		_update_hint_button()
 
 
