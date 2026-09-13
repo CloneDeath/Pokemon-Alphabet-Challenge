@@ -235,16 +235,48 @@ func _animate_background_icons() -> void:
 	var viewport_size := get_viewport_rect().size
 	for index in range(background_icons.size()):
 		var icon := background_icons[index]
-		var base := background_positions[index] * viewport_size - icon.size * 0.5
 		var phase := background_phases[index]
-		icon.position = base + Vector2(
-			sin(background_time * 0.22 + phase) * 7.0,
-			cos(background_time * 0.28 + phase) * 10.0
+		var base := background_positions[index] * viewport_size - icon.size * 0.5
+		var travel_height := viewport_size.y + icon.size.y * 2.0
+		var drift_speed := 8.0 + float(index % 3) * 2.5
+		var drifting_y := fposmod(base.y - background_time * drift_speed + icon.size.y, travel_height) - icon.size.y
+		icon.position = Vector2(
+			base.x + sin(background_time * 0.48 + phase) * 14.0,
+			drifting_y
 		)
-		icon.rotation = sin(background_time * 0.12 + phase) * 0.055
+		icon.rotation = sin(background_time * 0.28 + phase) * 0.10
+
+
+func _opaque_button_style(color: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = color
+	style.border_color = Color("#416a9d")
+	style.set_border_width_all(1)
+	style.corner_radius_top_left = 8
+	style.corner_radius_top_right = 8
+	style.corner_radius_bottom_left = 8
+	style.corner_radius_bottom_right = 8
+	style.content_margin_left = 10
+	style.content_margin_right = 10
+	style.content_margin_top = 8
+	style.content_margin_bottom = 8
+	return style
+
+
+func _install_game_theme() -> void:
+	var game_theme := Theme.new()
+	game_theme.set_stylebox("normal", "Button", _opaque_button_style(Color("#193a68")))
+	game_theme.set_stylebox("hover", "Button", _opaque_button_style(Color("#28578e")))
+	game_theme.set_stylebox("pressed", "Button", _opaque_button_style(Color("#102b50")))
+	game_theme.set_stylebox("focus", "Button", _opaque_button_style(Color("#214a7d")))
+	var disabled_style := _opaque_button_style(Color("#111d31"))
+	disabled_style.border_color = Color("#263750")
+	game_theme.set_stylebox("disabled", "Button", disabled_style)
+	theme = game_theme
 
 
 func _build_ui() -> void:
+	_install_game_theme()
 	_build_background()
 
 	var build_label := Label.new()
@@ -1217,9 +1249,9 @@ func _on_theme_font_loaded(
 		return
 	var pixel_font := FontFile.new()
 	pixel_font.data = body
-	var game_theme := Theme.new()
-	game_theme.default_font = pixel_font
-	theme = game_theme
+	if theme == null:
+		theme = Theme.new()
+	theme.default_font = pixel_font
 
 
 func _load_pokemon_names() -> void:
