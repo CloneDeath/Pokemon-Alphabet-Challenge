@@ -4,7 +4,8 @@ const LETTERS := "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 const POKEAPI_URL := "https://pokeapi.co/api/v2/pokemon-species?limit=2000"
 const SPRITE_URL := "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/%d.png"
 const SHINY_SPRITE_URL := "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/%d.png"
-const FONT_URL := "https://raw.githubusercontent.com/google/fonts/main/ofl/comicneue/ComicNeue-Bold.ttf"
+const FONT_URL := "https://raw.githubusercontent.com/google/fonts/main/ofl/comicneue/ComicNeue-Regular.ttf"
+const SAVE_PATH := "user://pokedex.json"
 const BUILD_INFO = preload("res://build_info.gd")
 
 var letter_index := 0
@@ -14,6 +15,9 @@ var used_names: Dictionary = {}
 var pokemon_names: Dictionary = {}
 var validation_ready := false
 var run_over := false
+var run_saved := false
+var current_run_names: Array[String] = []
+var pokedex_data: Dictionary = {}
 
 var recent_rows: Array[HBoxContainer] = []
 var letter_label: Label
@@ -27,15 +31,22 @@ var suggestions_scroll: ScrollContainer
 var suggestions_label: Label
 var stumped_button: Button
 var restart_button: Button
+var game_margin: MarginContainer
+var menu_overlay: Control
+var pokedex_overlay: Control
+var pokedex_button: Button
+var pokedex_list: VBoxContainer
 
 
 func _ready() -> void:
+	_load_save()
 	_build_ui()
 	get_viewport().size_changed.connect(_update_grid_columns)
 	_update_grid_columns()
 	_update_screen()
 	_load_theme_font()
 	_load_pokemon_names()
+	_show_main_menu()
 
 
 func _build_ui() -> void:
@@ -54,7 +65,8 @@ func _build_ui() -> void:
 	build_label.size = Vector2(138, 22)
 	add_child(build_label)
 
-	var margin := MarginContainer.new()
+	game_margin = MarginContainer.new()
+	var margin := game_margin
 	margin.add_theme_constant_override("margin_left", 16)
 	margin.add_theme_constant_override("margin_right", 16)
 	margin.add_theme_constant_override("margin_top", 28)
@@ -128,15 +140,17 @@ func _build_ui() -> void:
 	stumped_button.text = "Give Up"
 	stumped_button.focus_mode = Control.FOCUS_NONE
 	stumped_button.add_theme_color_override("font_color", Color.WHITE)
-	stumped_button.add_theme_font_size_override("font_size", 16)
+	stumped_button.add_theme_font_size_override("font_size", 13)
+	stumped_button.custom_minimum_size = Vector2(96, 0)
+	stumped_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	var give_up_style := StyleBoxFlat.new()
 	give_up_style.bg_color = Color("#b83a4b")
 	give_up_style.corner_radius_top_left = 8
 	give_up_style.corner_radius_top_right = 8
 	give_up_style.corner_radius_bottom_left = 8
 	give_up_style.corner_radius_bottom_right = 8
-	give_up_style.content_margin_top = 10
-	give_up_style.content_margin_bottom = 10
+	give_up_style.content_margin_top = 5
+	give_up_style.content_margin_bottom = 5
 	stumped_button.add_theme_stylebox_override("normal", give_up_style)
 	stumped_button.pressed.connect(_stumped)
 	layout.add_child(stumped_button)
@@ -167,10 +181,192 @@ func _build_ui() -> void:
 	layout.move_child(status_label, 4)
 
 	restart_button = Button.new()
-	restart_button.text = "Play Again"
+	restart_button.text = "Main Menu"
 	restart_button.visible = false
-	restart_button.pressed.connect(_restart)
+	restart_button.pressed.connect(_show_main_menu)
 	layout.add_child(restart_button)
+
+	_build_main_menu()
+	_build_pokedex_screen()
+
+
+func _build_main_menu() -> void:
+	menu_overlay = Control.new()
+	menu_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(menu_overlay)
+
+	var background := ColorRect.new()
+	background.color = Color("#09142d")
+	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	menu_overlay.add_child(background)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	menu_overlay.add_child(center)
+
+	var menu := VBoxContainer.new()
+	menu.custom_minimum_size = Vector2(280, 0)
+	menu.add_theme_constant_override("separation", 18)
+	center.add_child(menu)
+
+	var title := Label.new()
+	title.text = "POKÉMON\nALPHABET CHALLENGE"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 30)
+	title.add_theme_color_override("font_color", Color("#ffcb05"))
+	menu.add_child(title)
+
+	var start_button := Button.new()
+	start_button.text = "Start the Challenge"
+	start_button.custom_minimum_size = Vector2(0, 54)
+	start_button.add_theme_font_size_override("font_size", 19)
+	start_button.pressed.connect(_start_challenge)
+	menu.add_child(start_button)
+
+	pokedex_button = Button.new()
+	pokedex_button.text = "Pokédex"
+	pokedex_button.custom_minimum_size = Vector2(0, 48)
+	pokedex_button.pressed.connect(_show_pokedex)
+	menu.add_child(pokedex_button)
+
+
+func _build_pokedex_screen() -> void:
+	pokedex_overlay = Control.new()
+	pokedex_overlay.visible = false
+	pokedex_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(pokedex_overlay)
+
+	var background := ColorRect.new()
+	background.color = Color("#09142d")
+	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	pokedex_overlay.add_child(background)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 18)
+	margin.add_theme_constant_override("margin_right", 18)
+	margin.add_theme_constant_override("margin_top", 36)
+	margin.add_theme_constant_override("margin_bottom", 18)
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	pokedex_overlay.add_child(margin)
+
+	var layout := VBoxContainer.new()
+	layout.add_theme_constant_override("separation", 10)
+	margin.add_child(layout)
+
+	var title := Label.new()
+	title.text = "POKÉDEX"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 28)
+	title.add_theme_color_override("font_color", Color("#ffcb05"))
+	layout.add_child(title)
+
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	layout.add_child(scroll)
+
+	pokedex_list = VBoxContainer.new()
+	pokedex_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pokedex_list.add_theme_constant_override("separation", 6)
+	scroll.add_child(pokedex_list)
+
+	var back_button := Button.new()
+	back_button.text = "Back"
+	back_button.custom_minimum_size = Vector2(0, 46)
+	back_button.pressed.connect(_show_main_menu)
+	layout.add_child(back_button)
+
+
+func _show_main_menu() -> void:
+	DisplayServer.virtual_keyboard_hide()
+	game_margin.visible = false
+	pokedex_overlay.visible = false
+	menu_overlay.visible = true
+	pokedex_button.visible = not pokedex_data.is_empty()
+
+
+func _start_challenge() -> void:
+	menu_overlay.visible = false
+	pokedex_overlay.visible = false
+	game_margin.visible = true
+	_reset_run()
+	_open_keyboard()
+
+
+func _show_pokedex() -> void:
+	menu_overlay.visible = false
+	pokedex_overlay.visible = true
+	_populate_pokedex()
+
+
+func _populate_pokedex() -> void:
+	for child in pokedex_list.get_children():
+		child.queue_free()
+
+	var names: Array[String] = []
+	for api_name: String in pokedex_data:
+		names.append(api_name)
+	names.sort()
+
+	for api_name in names:
+		var record: Dictionary = pokedex_data[api_name]
+		var row := HBoxContainer.new()
+		row.custom_minimum_size = Vector2(0, 58)
+		pokedex_list.add_child(row)
+
+		var sprite := TextureRect.new()
+		sprite.custom_minimum_size = Vector2(54, 54)
+		sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		row.add_child(sprite)
+
+		var details := Label.new()
+		details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		details.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		details.text = "#%04d  %s\nGuessed %d time%s" % [
+			int(record.get("id", 0)),
+			_pretty_name(api_name),
+			int(record.get("count", 0)),
+			"" if int(record.get("count", 0)) == 1 else "s"
+		]
+		row.add_child(details)
+
+		var pokemon_id := int(record.get("id", 0))
+		if pokemon_id > 0:
+			_load_sprite_by_id(pokemon_id, sprite)
+
+
+func _load_sprite_by_id(pokemon_id: int, target: TextureRect) -> void:
+	var request := HTTPRequest.new()
+	add_child(request)
+	request.request_completed.connect(_on_sprite_loaded.bind(request, target, false))
+	request.request(SPRITE_URL % pokemon_id)
+
+
+func _load_save() -> void:
+	if not FileAccess.file_exists(SAVE_PATH):
+		return
+	var file := FileAccess.open(SAVE_PATH, FileAccess.READ)
+	if file == null:
+		return
+	var parsed = JSON.parse_string(file.get_as_text())
+	if typeof(parsed) == TYPE_DICTIONARY:
+		pokedex_data = parsed
+
+
+func _save_current_run() -> void:
+	if run_saved or current_run_names.is_empty():
+		return
+	for api_name in current_run_names:
+		var record: Dictionary = pokedex_data.get(api_name, {})
+		record["count"] = int(record.get("count", 0)) + 1
+		record["id"] = int(pokemon_names.get(api_name, record.get("id", 0)))
+		pokedex_data[api_name] = record
+	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	if file != null:
+		file.store_string(JSON.stringify(pokedex_data))
+	run_saved = true
 
 
 func _update_grid_columns() -> void:
@@ -287,6 +483,7 @@ func _submit_answer(raw_answer: String) -> void:
 		return
 
 	used_names[api_name] = true
+	current_run_names.append(api_name)
 	answers.append(accepted_answer)
 	_add_answer_card(accepted_answer, api_name)
 	letter_index += 1
@@ -517,6 +714,7 @@ func _stumped() -> void:
 
 func _end_run(reason: String) -> void:
 	run_over = true
+	_save_current_run()
 	DisplayServer.virtual_keyboard_hide()
 	entry.visible = false
 	stumped_button.visible = false
@@ -541,10 +739,12 @@ func _update_screen() -> void:
 	letter_label.text = LETTERS[letter_index]
 
 
-func _restart() -> void:
+func _reset_run() -> void:
 	letter_index = 0
 	rounds_completed = 0
 	run_over = false
+	run_saved = false
+	current_run_names.clear()
 	answers.clear()
 	used_names.clear()
 	for row in recent_rows:
@@ -562,4 +762,3 @@ func _restart() -> void:
 	status_label.visible = false
 	_skip_unavailable_letters()
 	_update_screen()
-	_open_keyboard()
