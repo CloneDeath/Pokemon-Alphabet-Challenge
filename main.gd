@@ -479,7 +479,7 @@ func _resume_challenge() -> void:
 		completed_rounds_scroll.visible = true
 	for item in current_round_entries:
 		var data: Dictionary = item
-		_add_answer_card(String(data.display_name), String(data.name), bool(data.shiny))
+		_add_answer_card(String(data.display_name), String(data.name), bool(data.shiny), false)
 	_update_screen()
 	_open_keyboard()
 
@@ -805,7 +805,7 @@ func _available_names_for_letter(letter: String) -> Array[String]:
 	return available
 
 
-func _add_answer_card(display_name: String, api_name: String, shiny: bool) -> void:
+func _add_answer_card(display_name: String, api_name: String, shiny: bool, animate_sprite: bool = true) -> void:
 	var card := VBoxContainer.new()
 	card.custom_minimum_size = Vector2(32, 32)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -848,7 +848,7 @@ func _add_answer_card(display_name: String, api_name: String, shiny: bool) -> vo
 		oldest.queue_free()
 	_update_recent_opacity()
 
-	_load_sprite(api_name, compact_sprite, true, shiny)
+	_load_sprite(api_name, compact_sprite, animate_sprite, shiny)
 	_load_sprite(api_name, recent_sprite, false, shiny)
 
 
@@ -1203,12 +1203,14 @@ func _on_hint_species_loaded(
 	if response_code != 200:
 		hints_remaining = mini(3, hints_remaining + 1)
 		_update_hint_button()
+		_save_active_run()
 		_show_info_popup("Hint unavailable")
 		return
 	var data = JSON.parse_string(body.get_string_from_utf8())
 	if typeof(data) != TYPE_DICTIONARY:
 		hints_remaining = mini(3, hints_remaining + 1)
 		_update_hint_button()
+		_save_active_run()
 		return
 	var generation := String(data.get("generation", {}).get("name", "unknown")).trim_prefix("generation-").to_upper()
 	_show_hint("Introduced in Generation %s." % generation)
