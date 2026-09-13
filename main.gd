@@ -291,6 +291,7 @@ func _build_ui() -> void:
 	layout.move_child(input_row, 2)
 	layout.move_child(action_row, 3)
 	layout.move_child(status_label, 4)
+	layout.move_child(completed_rounds_scroll, answers_scroll.get_index() + 1)
 
 	results_buttons = HBoxContainer.new()
 	results_buttons.visible = false
@@ -896,28 +897,33 @@ func _complete_round_display() -> void:
 func _add_completed_round_square(snapshot: Array, round_number: int) -> void:
 	completed_rounds_scroll.visible = true
 	var square := PanelContainer.new()
-	square.custom_minimum_size = Vector2(70, 70)
+	square.custom_minimum_size = Vector2(70, 0)
 	square.tooltip_text = "Alphabet %d — %d Pokémon" % [round_number, snapshot.size()]
 	square.mouse_filter = Control.MOUSE_FILTER_STOP
 	square.gui_input.connect(_on_round_square_input.bind(snapshot, round_number))
 	completed_rounds_grid.add_child(square)
 
-	var preview := GridContainer.new()
-	preview.columns = 4
-	preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	preview.add_theme_constant_override("h_separation", 0)
-	preview.add_theme_constant_override("v_separation", 0)
-	square.add_child(preview)
+	var preview_rows := VBoxContainer.new()
+	preview_rows.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	preview_rows.add_theme_constant_override("separation", 0)
+	square.add_child(preview_rows)
 
-	for index in range(mini(16, snapshot.size())):
+	var preview_row: HBoxContainer
+	for index in range(snapshot.size()):
+		if index % 5 == 0:
+			preview_row = HBoxContainer.new()
+			preview_row.alignment = BoxContainer.ALIGNMENT_CENTER
+			preview_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			preview_row.add_theme_constant_override("separation", 0)
+			preview_rows.add_child(preview_row)
 		var item: Dictionary = snapshot[index]
 		var sprite := TextureRect.new()
-		sprite.custom_minimum_size = Vector2(16, 16)
+		sprite.custom_minimum_size = Vector2(12, 12)
 		sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		sprite.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		preview.add_child(sprite)
+		preview_row.add_child(sprite)
 		_load_sprite(String(item.name), sprite, false, bool(item.shiny))
 	call_deferred("_scroll_completed_rounds_to_end")
 
@@ -937,10 +943,10 @@ func _show_round_popup(entries: Array, round_number: int) -> void:
 	add_child(popup)
 
 	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 12)
-	margin.add_theme_constant_override("margin_right", 12)
-	margin.add_theme_constant_override("margin_top", 12)
-	margin.add_theme_constant_override("margin_bottom", 12)
+	margin.add_theme_constant_override("margin_left", 10)
+	margin.add_theme_constant_override("margin_right", 10)
+	margin.add_theme_constant_override("margin_top", 10)
+	margin.add_theme_constant_override("margin_bottom", 10)
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	popup.add_child(margin)
 
@@ -960,22 +966,27 @@ func _show_round_popup(entries: Array, round_number: int) -> void:
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	layout.add_child(scroll)
 
-	var grid := GridContainer.new()
-	grid.columns = 3
-	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	grid.add_theme_constant_override("h_separation", 6)
-	grid.add_theme_constant_override("v_separation", 8)
-	scroll.add_child(grid)
+	var popup_rows := VBoxContainer.new()
+	popup_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	popup_rows.add_theme_constant_override("separation", 6)
+	scroll.add_child(popup_rows)
 
-	for entry_data in entries:
-		var item: Dictionary = entry_data
+	var popup_row: HBoxContainer
+	for index in range(entries.size()):
+		if index % 5 == 0:
+			popup_row = HBoxContainer.new()
+			popup_row.alignment = BoxContainer.ALIGNMENT_CENTER
+			popup_row.add_theme_constant_override("separation", 4)
+			popup_rows.add_child(popup_row)
+
+		var item: Dictionary = entries[index]
 		var card := VBoxContainer.new()
-		card.custom_minimum_size = Vector2(88, 84)
-		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		grid.add_child(card)
+		card.custom_minimum_size = Vector2(62, 76)
+		card.alignment = BoxContainer.ALIGNMENT_CENTER
+		popup_row.add_child(card)
 
 		var sprite := TextureRect.new()
-		sprite.custom_minimum_size = Vector2(58, 58)
+		sprite.custom_minimum_size = Vector2(50, 50)
 		sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -986,7 +997,7 @@ func _show_round_popup(entries: Array, round_number: int) -> void:
 		label.text = String(item.display_name)
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		label.add_theme_font_size_override("font_size", 12)
+		label.add_theme_font_size_override("font_size", 10)
 		card.add_child(label)
 		if bool(item.shiny):
 			_animate_shiny_name(label)
