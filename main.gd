@@ -2,7 +2,7 @@ extends Control
 
 const LETTERS := "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 const POKEAPI_URL := "https://pokeapi.co/api/v2/pokemon?limit=2000"
-const VERSION := "v0.2.0"
+const VERSION := "v0.2.1"
 
 var letter_index := 0
 var answers: Array[String] = []
@@ -77,6 +77,7 @@ func _build_ui() -> void:
 	entry.custom_minimum_size = Vector2(0, 52)
 	entry.add_theme_font_size_override("font_size", 22)
 	entry.text_submitted.connect(_submit_answer)
+	entry.gui_input.connect(_on_entry_gui_input)
 	layout.add_child(entry)
 
 	submit_button = Button.new()
@@ -101,6 +102,19 @@ func _build_ui() -> void:
 	restart_button.visible = false
 	restart_button.pressed.connect(_restart)
 	layout.add_child(restart_button)
+
+
+func _on_entry_gui_input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch and event.pressed:
+		entry.grab_focus()
+		entry.edit()
+		DisplayServer.virtual_keyboard_show(
+			entry.text,
+			entry.get_global_rect(),
+			DisplayServer.KEYBOARD_TYPE_DEFAULT,
+			-1,
+			entry.caret_column
+		)
 
 
 func _load_pokemon_names() -> void:
