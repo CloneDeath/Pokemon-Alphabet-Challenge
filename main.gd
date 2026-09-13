@@ -51,6 +51,8 @@ const MYTHICAL_NAMES := {
 	"marshadow": true, "zeraora": true, "meltan": true, "melmetal": true, "zarude": true, "pecharunt": true
 }
 const BUILD_INFO = preload("res://build_info.gd")
+const POKEMON_LOGO = preload("res://assets/pokemon-logo.png")
+const GEAR_ICON = preload("res://assets/gear.svg")
 
 var letter_index := 0
 var rounds_completed := 0
@@ -111,6 +113,7 @@ var pokedex_button: Button
 var resume_button: Button
 var time_trial_button: Button
 var restore_dialog: FileDialog
+var settings_popup: PopupPanel
 var pokedex_list: VBoxContainer
 var pokedex_grids: Array[GridContainer] = []
 
@@ -185,18 +188,23 @@ func _build_ui() -> void:
 	layout.add_child(title)
 
 	var progress_row := HBoxContainer.new()
-	progress_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	progress_row.add_theme_constant_override("separation", 10)
+	progress_row.add_theme_constant_override("separation", 8)
 	layout.add_child(progress_row)
 
+	var timer_spacer := Control.new()
+	timer_spacer.custom_minimum_size = Vector2(88, 0)
+	progress_row.add_child(timer_spacer)
+
 	progress_label = Label.new()
+	progress_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	progress_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	progress_label.add_theme_font_size_override("font_size", 16)
 	progress_row.add_child(progress_label)
 
 	timer_label = Label.new()
 	timer_label.visible = false
-	timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	timer_label.custom_minimum_size = Vector2(88, 0)
+	timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	timer_label.add_theme_font_size_override("font_size", 16)
 	timer_label.add_theme_color_override("font_color", Color("#8ee8d0"))
 	progress_row.add_child(timer_label)
@@ -456,12 +464,26 @@ func _build_main_menu() -> void:
 	menu.add_theme_constant_override("separation", 18)
 	center.add_child(menu)
 
-	var title := Label.new()
-	title.text = "POKÉMON\nALPHABET CHALLENGE"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 30)
-	title.add_theme_color_override("font_color", Color("#ffcb05"))
-	menu.add_child(title)
+	var brand := VBoxContainer.new()
+	brand.alignment = BoxContainer.ALIGNMENT_CENTER
+	brand.add_theme_constant_override("separation", -10)
+	menu.add_child(brand)
+
+	var logo := TextureRect.new()
+	logo.texture = POKEMON_LOGO
+	logo.custom_minimum_size = Vector2(280, 104)
+	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	brand.add_child(logo)
+
+	var subtitle := Label.new()
+	subtitle.text = "ALPHABET CHALLENGE"
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	subtitle.add_theme_font_size_override("font_size", 18)
+	subtitle.add_theme_color_override("font_color", Color("#e8f2ff"))
+	subtitle.add_theme_color_override("font_outline_color", Color("#244a85"))
+	subtitle.add_theme_constant_override("outline_size", 5)
+	brand.add_child(subtitle)
 
 	var run_buttons := HBoxContainer.new()
 	run_buttons.add_theme_constant_override("separation", 8)
@@ -499,42 +521,64 @@ func _build_main_menu() -> void:
 	pokedex_button.pressed.connect(_show_pokedex)
 	menu.add_child(pokedex_button)
 
-	var delete_save_button := Button.new()
-	delete_save_button.text = "Delete Save"
-	delete_save_button.focus_mode = Control.FOCUS_NONE
-	delete_save_button.add_theme_font_size_override("font_size", 11)
-	delete_save_button.add_theme_color_override("font_color", Color("#8290ad"))
-	delete_save_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	delete_save_button.position = Vector2(-102, -42)
-	delete_save_button.size = Vector2(92, 30)
-	delete_save_button.pressed.connect(_ask_delete_save)
-	menu_overlay.add_child(delete_save_button)
+	var settings_button := Button.new()
+	settings_button.icon = GEAR_ICON
+	settings_button.tooltip_text = "Save settings"
+	settings_button.focus_mode = Control.FOCUS_NONE
+	settings_button.flat = true
+	settings_button.expand_icon = true
+	settings_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	settings_button.position = Vector2(-54, -54)
+	settings_button.size = Vector2(44, 44)
+	settings_button.pressed.connect(_show_save_settings)
+	menu_overlay.add_child(settings_button)
 
-	delete_save_confirmation = ConfirmationDialog.new()
-	delete_save_confirmation.title = "Delete save?"
-	delete_save_confirmation.dialog_text = "This permanently clears your Pokédex, scores, unlocks, and saved run."
-	delete_save_confirmation.ok_button_text = "Delete Everything"
-	delete_save_confirmation.cancel_button_text = "Cancel"
-	delete_save_confirmation.confirmed.connect(_confirm_delete_save)
-	add_child(delete_save_confirmation)
+	settings_popup = PopupPanel.new()
+	add_child(settings_popup)
 
-	var save_buttons := HBoxContainer.new()
-	save_buttons.add_theme_constant_override("separation", 8)
-	menu.add_child(save_buttons)
+	var settings_margin := MarginContainer.new()
+	settings_margin.add_theme_constant_override("margin_left", 18)
+	settings_margin.add_theme_constant_override("margin_right", 18)
+	settings_margin.add_theme_constant_override("margin_top", 16)
+	settings_margin.add_theme_constant_override("margin_bottom", 16)
+	settings_popup.add_child(settings_margin)
+
+	var settings_layout := VBoxContainer.new()
+	settings_layout.add_theme_constant_override("separation", 10)
+	settings_margin.add_child(settings_layout)
+
+	var settings_title := Label.new()
+	settings_title.text = "Save Settings"
+	settings_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	settings_title.add_theme_font_size_override("font_size", 20)
+	settings_layout.add_child(settings_title)
 
 	var backup_button := Button.new()
 	backup_button.text = "Backup Save"
-	backup_button.custom_minimum_size = Vector2(0, 42)
-	backup_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	backup_button.custom_minimum_size = Vector2(230, 44)
 	backup_button.pressed.connect(_backup_save)
-	save_buttons.add_child(backup_button)
+	settings_layout.add_child(backup_button)
 
 	var restore_button := Button.new()
 	restore_button.text = "Restore Save"
-	restore_button.custom_minimum_size = Vector2(0, 42)
-	restore_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	restore_button.custom_minimum_size = Vector2(230, 44)
 	restore_button.pressed.connect(_choose_restore_save)
-	save_buttons.add_child(restore_button)
+	settings_layout.add_child(restore_button)
+
+	var delete_save_button := Button.new()
+	delete_save_button.text = "Clear Save"
+	delete_save_button.custom_minimum_size = Vector2(230, 40)
+	delete_save_button.add_theme_color_override("font_color", Color("#ff8d9b"))
+	delete_save_button.pressed.connect(_ask_delete_save)
+	settings_layout.add_child(delete_save_button)
+
+	delete_save_confirmation = ConfirmationDialog.new()
+	delete_save_confirmation.title = "Clear save?"
+	delete_save_confirmation.dialog_text = "This permanently clears your Pokédex, scores, unlocks, and saved run."
+	delete_save_confirmation.ok_button_text = "Clear Everything"
+	delete_save_confirmation.cancel_button_text = "Cancel"
+	delete_save_confirmation.confirmed.connect(_confirm_delete_save)
+	add_child(delete_save_confirmation)
 
 	restore_dialog = FileDialog.new()
 	restore_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
@@ -545,7 +589,12 @@ func _build_main_menu() -> void:
 	add_child(restore_dialog)
 
 
+func _show_save_settings() -> void:
+	settings_popup.popup_centered(Vector2i(282, 230))
+
+
 func _ask_delete_save() -> void:
+	settings_popup.hide()
 	delete_save_confirmation.popup_centered(Vector2i(330, 170))
 
 
