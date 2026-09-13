@@ -13,9 +13,9 @@ var pokemon_names: Dictionary = {}
 var validation_ready := false
 var run_over := false
 
-var answer_cards: Array[VBoxContainer] = []
-var answer_labels: Array[Label] = []
+var recent_rows: Array[HBoxContainer] = []
 var letter_label: Label
+var recent_list: VBoxContainer
 var entry: LineEdit
 var status_label: Label
 var progress_label: Label
@@ -76,11 +76,23 @@ func _build_ui() -> void:
 	progress_label.add_theme_font_size_override("font_size", 16)
 	layout.add_child(progress_label)
 
+	var current_row := HBoxContainer.new()
+	current_row.custom_minimum_size = Vector2(0, 92)
+	current_row.add_theme_constant_override("separation", 12)
+	layout.add_child(current_row)
+
 	letter_label = Label.new()
+	letter_label.custom_minimum_size = Vector2(72, 86)
 	letter_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	letter_label.add_theme_font_size_override("font_size", 72)
+	letter_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	letter_label.add_theme_font_size_override("font_size", 48)
 	letter_label.add_theme_color_override("font_color", Color("#62a8e5"))
-	layout.add_child(letter_label)
+	current_row.add_child(letter_label)
+
+	recent_list = VBoxContainer.new()
+	recent_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	recent_list.add_theme_constant_override("separation", 1)
+	current_row.add_child(recent_list)
 
 	answers_scroll = ScrollContainer.new()
 	answers_scroll.custom_minimum_size = Vector2(0, 86)
@@ -131,6 +143,7 @@ func _build_ui() -> void:
 	status_label.add_theme_font_size_override("font_size", 14)
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	status_label.custom_minimum_size = Vector2(0, 22)
+	status_label.visible = false
 	layout.add_child(status_label)
 
 	suggestions_scroll = ScrollContainer.new()
@@ -187,6 +200,7 @@ func _load_pokemon_names() -> void:
 	request.request_completed.connect(_on_pokemon_list_loaded.bind(request))
 	if request.request(POKEAPI_URL) != OK:
 		status_label.text = "Offline mode — starting-letter checks only."
+		status_label.visible = true
 
 
 func _on_pokemon_list_loaded(
@@ -199,11 +213,13 @@ func _on_pokemon_list_loaded(
 	request.queue_free()
 	if response_code != 200:
 		status_label.text = "Offline mode — starting-letter checks only."
+		status_label.visible = true
 		return
 
 	var data = JSON.parse_string(body.get_string_from_utf8())
 	if typeof(data) != TYPE_DICTIONARY or not data.has("results"):
 		status_label.text = "Offline mode — starting-letter checks only."
+		status_label.visible = true
 		return
 
 	for item in data.results:
@@ -211,7 +227,7 @@ func _on_pokemon_list_loaded(
 		var url := String(item.url).trim_suffix("/")
 		pokemon_names[name] = int(url.get_file())
 	validation_ready = true
-	status_label.text = "Pokémon list loaded. Good luck!"
+	status_label.visible = false
 	_skip_unavailable_letters()
 	_update_screen()
 
@@ -248,16 +264,11 @@ func _submit_answer(raw_answer: String) -> void:
 	_add_answer_card(accepted_answer, api_name)
 	letter_index += 1
 	entry.clear()
+	status_label.visible = false
 
-	var message := "Nice!"
-	if _normalize_name(answer) != _normalize_name(accepted_answer):
-		message = "Accepted as %s!" % accepted_answer
 	if letter_index >= LETTERS.length():
 		rounds_completed += 1
 		letter_index = 0
-		message = "Alphabet %d complete — keep going!" % rounds_completed
-
-	status_label.text = message
 	_skip_unavailable_letters()
 	_update_screen()
 	entry.grab_focus()
@@ -290,43 +301,51 @@ func _available_names_for_letter(letter: String) -> Array[String]:
 
 func _add_answer_card(display_name: String, api_name: String) -> void:
 	var card := VBoxContainer.new()
-	card.custom_minimum_size = Vector2(60, 78)
+	card.custom_minimum_size = Vector2(52, 52)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card.alignment = BoxContainer.ALIGNMENT_CENTER
 	answers_grid.add_child(card)
-	answer_cards.append(card)
 
-	var sprite := TextureRect.new()
-	sprite.custom_minimum_size = Vector2(54, 54)
-	sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	card.add_child(sprite)
+	var compact_sprite := TextureRect.new()
+	compact_sprite.custom_minimum_size = Vector2(48, 48)
+	compact_sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	compact_sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	compact_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	card.add_child(compact_sprite)
+
+	var recent_row := HBoxContainer.new()
+	recent_row.custom_minimum_size = Vector2(0, 28)
+	recent_list.add_child(recent_row)
+	recent_rows.append(recent_row)
+
+	var recent_sprite := TextureRect.new()
+	recent_sprite.custom_minimum_size = Vector2(28, 28)
+	recent_sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	recent_sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	recent_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	recent_row.add_child(recent_sprite)
 
 	var name_label := Label.new()
 	name_label.text = display_name
-	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_label.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
-	name_label.add_theme_font_size_override("font_size", 10)
-	name_label.custom_minimum_size = Vector2(60, 24)
-	name_label.tooltip_text = display_name
-	card.add_child(name_label)
-	answer_labels.append(name_label)
-	_update_answer_labels()
+	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_label.add_theme_font_size_override("font_size", 13)
+	recent_row.add_child(name_label)
 
+	while recent_rows.size() > 3:
+		var oldest := recent_rows.pop_front()
+		oldest.queue_free()
+
+	_load_sprite(api_name, compact_sprite, true)
+	_load_sprite(api_name, recent_sprite, false)
+
+
+func _load_sprite(api_name: String, target: TextureRect, animate: bool) -> void:
 	if not pokemon_names.has(api_name):
 		return
 	var request := HTTPRequest.new()
 	add_child(request)
-	request.request_completed.connect(_on_sprite_loaded.bind(request, sprite))
+	request.request_completed.connect(_on_sprite_loaded.bind(request, target, animate))
 	request.request(SPRITE_URL % int(pokemon_names[api_name]))
-
-
-func _update_answer_labels() -> void:
-	for index in range(answer_labels.size()):
-		var show_name := index >= answer_labels.size() - 3
-		answer_labels[index].visible = show_name
-		answer_cards[index].custom_minimum_size.y = 78 if show_name else 56
 
 
 func _on_sprite_loaded(
@@ -334,15 +353,73 @@ func _on_sprite_loaded(
 	response_code: int,
 	_headers: PackedStringArray,
 	body: PackedByteArray,
-	request: HTTPRequest,
-	target: TextureRect
+		request: HTTPRequest,
+	target: TextureRect,
+	animate: bool
 ) -> void:
 	request.queue_free()
 	if response_code != 200 or not is_instance_valid(target):
 		return
 	var image := Image.new()
-	if image.load_png_from_buffer(body) == OK:
-		target.texture = ImageTexture.create_from_image(image)
+	if image.load_png_from_buffer(body) != OK:
+		return
+	var texture := ImageTexture.create_from_image(image)
+	target.texture = texture
+	if animate:
+		_animate_sprite(texture, target)
+
+
+func _animate_sprite(texture: Texture2D, target: TextureRect) -> void:
+	await get_tree().process_frame
+	if not is_instance_valid(target):
+		return
+	target.modulate.a = 0.0
+	var flying := TextureRect.new()
+	flying.texture = texture
+	flying.custom_minimum_size = Vector2(58, 58)
+	flying.size = Vector2(58, 58)
+	flying.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	flying.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	flying.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	add_child(flying)
+
+	var start := letter_label.global_position + letter_label.size * 0.5 - flying.size * 0.5
+	var destination := target.global_position + target.size * 0.5 - flying.size * 0.5
+	flying.global_position = start
+	flying.scale = Vector2(1.35, 1.35)
+
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(flying, "global_position", destination, 0.38).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	tween.tween_property(flying, "scale", Vector2.ONE, 0.38)
+	tween.set_parallel(false)
+	tween.tween_callback(_finish_sprite_flight.bind(flying, target))
+
+
+func _finish_sprite_flight(flying: TextureRect, target: TextureRect) -> void:
+	var burst_position := flying.global_position + flying.size * 0.5
+	if is_instance_valid(target):
+		target.modulate.a = 1.0
+	flying.queue_free()
+	_emit_particles(burst_position)
+
+
+func _emit_particles(center: Vector2) -> void:
+	var colors := [Color("#ffcb05"), Color("#62a8e5"), Color("#ff6b6b")]
+	for index in range(8):
+		var particle := ColorRect.new()
+		particle.color = colors[index % colors.size()]
+		particle.size = Vector2(6, 6)
+		particle.global_position = center - particle.size * 0.5
+		add_child(particle)
+		var angle := TAU * float(index) / 8.0
+		var destination := particle.position + Vector2.from_angle(angle) * 34.0
+		var tween := create_tween()
+		tween.set_parallel(true)
+		tween.tween_property(particle, "position", destination, 0.32)
+		tween.tween_property(particle, "modulate:a", 0.0, 0.32)
+		tween.set_parallel(false)
+		tween.tween_callback(particle.queue_free)
 
 
 func _scroll_to_latest() -> void:
@@ -397,6 +474,7 @@ func _pretty_name(api_name: String) -> String:
 
 func _show_error(message: String) -> void:
 	status_label.text = message
+	status_label.visible = true
 	status_label.add_theme_color_override("font_color", Color("#ff6b6b"))
 	entry.clear()
 	entry.grab_focus()
@@ -423,6 +501,7 @@ func _end_run(reason: String) -> void:
 	var answer_text := ", ".join(pretty) if not pretty.is_empty() else "No unused answers remained."
 	suggestions_label.text = "Possible %s answers:\n\n%s" % [LETTERS[letter_index], answer_text]
 	status_label.text = "%s  %d alphabet(s), %d Pokémon." % [reason, rounds_completed, answers.size()]
+	status_label.visible = true
 	_update_screen()
 
 
@@ -438,8 +517,10 @@ func _restart() -> void:
 	run_over = false
 	answers.clear()
 	used_names.clear()
-	answer_cards.clear()
-	answer_labels.clear()
+	for row in recent_rows:
+		if is_instance_valid(row):
+			row.queue_free()
+	recent_rows.clear()
 	for child in answers_grid.get_children():
 		child.queue_free()
 	entry.visible = true
@@ -448,6 +529,7 @@ func _restart() -> void:
 	suggestions_scroll.visible = false
 	restart_button.visible = false
 	status_label.text = ""
+	status_label.visible = false
 	_skip_unavailable_letters()
 	_update_screen()
 	_open_keyboard()
