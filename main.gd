@@ -64,6 +64,12 @@ var hints_remaining := 3
 var has_saved_run := false
 var has_high_score := false
 var high_score := 0
+var time_trial_unlocked := false
+var has_time_trial_best := false
+var time_trial_best := 0.0
+var game_mode := "challenge"
+var time_trial_started_at := 0.0
+var elapsed_time := 0.0
 var active_hint_text := ""
 var active_hint_pokemon := ""
 var current_run_names: Array[String] = []
@@ -80,6 +86,8 @@ var hint_label: Label
 var entry: LineEdit
 var status_label: Label
 var progress_label: Label
+var timer_label: Label
+var medal_label: Label
 var answers_scroll: ScrollContainer
 var answers_grid: GridContainer
 var grid_name_label: Label
@@ -100,6 +108,7 @@ var menu_overlay: Control
 var pokedex_overlay: Control
 var pokedex_button: Button
 var resume_button: Button
+var time_trial_button: Button
 var pokedex_list: VBoxContainer
 var pokedex_grids: Array[GridContainer] = []
 
@@ -115,6 +124,23 @@ func _ready() -> void:
 	_load_theme_font()
 	_load_pokemon_names()
 	_show_main_menu()
+
+
+func _process(_delta: float) -> void:
+	if game_mode == "time_trial" and not run_over and is_instance_valid(game_margin) and game_margin.visible:
+		elapsed_time = Time.get_unix_time_from_system() - time_trial_started_at
+		_update_timer_label()
+
+
+func _format_time(seconds: float) -> String:
+	var minutes := int(seconds) / 60
+	var remaining := seconds - float(minutes * 60)
+	return "%d:%05.2f" % [minutes, remaining]
+
+
+func _update_timer_label() -> void:
+	if is_instance_valid(timer_label):
+		timer_label.text = _format_time(elapsed_time)
 
 
 func _build_ui() -> void:
@@ -160,6 +186,13 @@ func _build_ui() -> void:
 	progress_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	progress_label.add_theme_font_size_override("font_size", 16)
 	layout.add_child(progress_label)
+
+	timer_label = Label.new()
+	timer_label.visible = false
+	timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	timer_label.add_theme_font_size_override("font_size", 20)
+	timer_label.add_theme_color_override("font_color", Color("#8ee8d0"))
+	layout.add_child(timer_label)
 
 	current_row = HBoxContainer.new()
 	current_row.custom_minimum_size = Vector2(0, 92)
@@ -306,6 +339,12 @@ func _build_ui() -> void:
 	suggestions_layout.add_theme_constant_override("separation", 4)
 	suggestions_scroll.add_child(suggestions_layout)
 
+	medal_label = Label.new()
+	medal_label.visible = false
+	medal_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	medal_label.add_theme_font_size_override("font_size", 19)
+	suggestions_layout.add_child(medal_label)
+
 	suggestions_label = Label.new()
 	suggestions_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	suggestions_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -332,7 +371,7 @@ func _build_ui() -> void:
 	try_again_button.text = "Try Again"
 	try_again_button.custom_minimum_size = Vector2(0, 48)
 	try_again_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	try_again_button.pressed.connect(_start_challenge)
+	try_again_button.pressed.connect(_try_again)
 	results_buttons.add_child(try_again_button)
 
 	var results_pokedex_button := Button.new()
@@ -439,6 +478,14 @@ func _build_main_menu() -> void:
 	start_button.pressed.connect(_start_challenge)
 	run_buttons.add_child(start_button)
 
+	time_trial_button = Button.new()
+	time_trial_button.text = "Time Trial"
+	time_trial_button.visible = time_trial_unlocked
+	time_trial_button.custom_minimum_size = Vector2(0, 50)
+	time_trial_button.add_theme_font_size_override("font_size", 18)
+	time_trial_button.pressed.connect(_start_time_trial)
+	menu.add_child(time_trial_button)
+
 	pokedex_button = Button.new()
 	pokedex_button.text = "Pokédex"
 	pokedex_button.custom_minimum_size = Vector2(0, 48)
@@ -499,11 +546,13 @@ func _show_main_menu() -> void:
 	pokedex_overlay.visible = false
 	menu_overlay.visible = true
 	pokedex_button.visible = not pokedex_data.is_empty()
+	time_trial_button.visible = time_trial_unlocked
 	resume_button.visible = has_saved_run
 	resume_button.disabled = not validation_ready
 
 
 func _start_challenge() -> void:
+	game_mode = "challenge"
 	_delete_active_run()
 	menu_overlay.visible = false
 	pokedex_overlay.visible = false
@@ -511,6 +560,28 @@ func _start_challenge() -> void:
 	_reset_run()
 	_save_active_run()
 	_open_keyboard()
+
+
+func _start_time_trial() -> void:
+	game_mode = "time_trial"
+	_delete_active_run()
+	menu_overlay.visible = false
+	pokedex_overlay.visible = false
+	game_margin.visible = true
+	_reset_run()
+	time_trial_started_at = Time.get_unix_time_from_system()
+	elapsed_time = 0.0
+	timer_label.visible = true
+	_update_timer_label()
+	_save_active_run()
+	_open_keyboard()
+
+
+func _try_again() -> void:
+	if game_mode == "time_trial":
+		_start_time_trial()
+	else:
+		_start_challenge()
 
 
 func _resume_challenge() -> void:
@@ -527,6 +598,8 @@ func _resume_challenge() -> void:
 		_add_answer_card(String(data.display_name), String(data.name), bool(data.shiny), false)
 	_update_screen()
 	hint_label.text = active_hint_text
+	timer_label.visible = game_mode == "time_trial"
+	_update_timer_label()
 	_update_hint_button()
 	_open_keyboard()
 
