@@ -182,17 +182,22 @@ func _build_ui() -> void:
 	title.add_theme_color_override("font_color", Color("#ffcb05"))
 	layout.add_child(title)
 
+	var progress_row := HBoxContainer.new()
+	progress_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	progress_row.add_theme_constant_override("separation", 10)
+	layout.add_child(progress_row)
+
 	progress_label = Label.new()
 	progress_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	progress_label.add_theme_font_size_override("font_size", 16)
-	layout.add_child(progress_label)
+	progress_row.add_child(progress_label)
 
 	timer_label = Label.new()
 	timer_label.visible = false
 	timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	timer_label.add_theme_font_size_override("font_size", 20)
+	timer_label.add_theme_font_size_override("font_size", 16)
 	timer_label.add_theme_color_override("font_color", Color("#8ee8d0"))
-	layout.add_child(timer_label)
+	progress_row.add_child(timer_label)
 
 	current_row = HBoxContainer.new()
 	current_row.custom_minimum_size = Vector2(0, 92)
@@ -729,10 +734,14 @@ func _load_active_run() -> void:
 	var data = JSON.parse_string(file.get_as_text())
 	if typeof(data) != TYPE_DICTIONARY:
 		return
+	game_mode = String(data.get("game_mode", "challenge"))
+	if game_mode == "time_trial":
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(ACTIVE_RUN_PATH))
+		game_mode = "challenge"
+		return
 	letter_index = int(data.get("letter_index", 0))
 	rounds_completed = int(data.get("rounds_completed", 0))
 	hints_remaining = int(data.get("hints_remaining", 3))
-	game_mode = String(data.get("game_mode", "challenge"))
 	time_trial_started_at = float(data.get("time_trial_started_at", 0.0))
 	if game_mode == "time_trial" and time_trial_started_at > 0.0:
 		elapsed_time = Time.get_unix_time_from_system() - time_trial_started_at
@@ -752,7 +761,7 @@ func _load_active_run() -> void:
 
 
 func _save_active_run() -> void:
-	if run_over:
+	if run_over or game_mode == "time_trial":
 		return
 	var data := {
 		"letter_index": letter_index,
@@ -1064,6 +1073,8 @@ func _animate_shiny_name(label: Label) -> void:
 func _complete_round_display() -> void:
 	hints_remaining = mini(3, hints_remaining + 1)
 	_update_hint_button()
+	if game_mode == "time_trial":
+		return
 	var snapshot: Array = current_round_entries.duplicate(true)
 	completed_round_entries.append(snapshot)
 	current_round_entries.clear()
