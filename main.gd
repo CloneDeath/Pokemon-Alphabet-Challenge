@@ -315,6 +315,9 @@ func _answer_was_used(answer: String) -> bool:
 func _show_error(message: String) -> void:
 	status_label.text = message
 	status_label.add_theme_color_override("font_color", Color("#ff6b6b"))
+	entry.clear()
+	entry.grab_focus()
+	entry.edit()
 
 
 func _update_screen() -> void:
