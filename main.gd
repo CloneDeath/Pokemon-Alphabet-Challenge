@@ -2,6 +2,7 @@ extends Control
 
 const LETTERS := "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 const POKEAPI_URL := "https://pokeapi.co/api/v2/pokemon?limit=2000"
+const VERSION := "v0.2.0"
 
 var letter_index := 0
 var answers: Array[String] = []
@@ -29,6 +30,16 @@ func _build_ui() -> void:
 	background.color = Color("#09142d")
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(background)
+
+	var version_label := Label.new()
+	version_label.text = VERSION
+	version_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	version_label.add_theme_font_size_override("font_size", 13)
+	version_label.add_theme_color_override("font_color", Color("#8290ad"))
+	version_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	version_label.position = Vector2(-72, 12)
+	version_label.size = Vector2(56, 24)
+	add_child(version_label)
 
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 24)
