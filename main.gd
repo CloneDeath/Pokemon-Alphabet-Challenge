@@ -78,7 +78,7 @@ var answers_scroll: ScrollContainer
 var answers_grid: GridContainer
 var grid_name_label: Label
 var completed_rounds_scroll: ScrollContainer
-var completed_rounds_grid: HBoxContainer
+var completed_rounds_grid: HFlowContainer
 var suggestions_scroll: ScrollContainer
 var suggestions_label: Label
 var suggestions_grid: HBoxContainer
@@ -189,13 +189,17 @@ func _build_ui() -> void:
 
 	completed_rounds_scroll = ScrollContainer.new()
 	completed_rounds_scroll.visible = false
-	completed_rounds_scroll.custom_minimum_size = Vector2(0, 76)
-	completed_rounds_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	completed_rounds_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	completed_rounds_scroll.custom_minimum_size = Vector2(0, 78)
+	completed_rounds_scroll.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	completed_rounds_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	completed_rounds_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	layout.add_child(completed_rounds_scroll)
 
-	completed_rounds_grid = HBoxContainer.new()
-	completed_rounds_grid.add_theme_constant_override("separation", 6)
+	completed_rounds_grid = HFlowContainer.new()
+	completed_rounds_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	completed_rounds_grid.alignment = BoxContainer.ALIGNMENT_BEGIN
+	completed_rounds_grid.add_theme_constant_override("h_separation", 6)
+	completed_rounds_grid.add_theme_constant_override("v_separation", 6)
 	completed_rounds_scroll.add_child(completed_rounds_grid)
 
 	answers_scroll = ScrollContainer.new()
@@ -897,11 +901,12 @@ func _complete_round_display() -> void:
 func _add_completed_round_square(snapshot: Array, round_number: int) -> void:
 	completed_rounds_scroll.visible = true
 	var square := PanelContainer.new()
-	square.custom_minimum_size = Vector2(70, 0)
+	square.custom_minimum_size = Vector2(58, 0)
 	square.tooltip_text = "Alphabet %d — %d Pokémon" % [round_number, snapshot.size()]
 	square.mouse_filter = Control.MOUSE_FILTER_STOP
 	square.gui_input.connect(_on_round_square_input.bind(snapshot, round_number))
 	completed_rounds_grid.add_child(square)
+	completed_rounds_grid.move_child(square, 0)
 
 	var preview_rows := VBoxContainer.new()
 	preview_rows.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -930,7 +935,7 @@ func _add_completed_round_square(snapshot: Array, round_number: int) -> void:
 
 func _scroll_completed_rounds_to_end() -> void:
 	await get_tree().process_frame
-	completed_rounds_scroll.scroll_horizontal = int(completed_rounds_scroll.get_h_scroll_bar().max_value)
+	completed_rounds_scroll.scroll_vertical = 0
 
 
 func _on_round_square_input(event: InputEvent, entries: Array, round_number: int) -> void:
