@@ -653,7 +653,7 @@ func _build_main_menu() -> void:
 
 	resume_button = Button.new()
 	resume_button.text = "Resume"
-	resume_button.visible = has_saved_run
+	resume_button.visible = false
 	resume_button.disabled = not validation_ready
 	resume_button.custom_minimum_size = Vector2(0, 54)
 	resume_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -966,7 +966,7 @@ func _show_main_menu() -> void:
 	pokedex_overlay.visible = false
 	menu_overlay.visible = true
 	pokedex_button.visible = not pokedex_data.is_empty()
-	resume_button.visible = has_saved_run
+	resume_button.visible = false
 	resume_button.disabled = not validation_ready
 	_refresh_main_menu()
 
@@ -978,6 +978,7 @@ func _refresh_main_menu() -> void:
 	time_attack_button.get_parent().visible = time_attack_unlocked
 	time_trial_button.get_parent().visible = infinite_mode_unlocked
 	time_trial_button.visible = infinite_mode_unlocked
+	time_trial_button.text = "Resume Infinite" if has_saved_run else "Infinite Mode"
 	time_trial_score_label.text = "" if not has_time_trial_best else (
 		_format_time(time_trial_best) if time_trial_best_completed else "%d Pokémon" % time_trial_best_pokemon
 	)
@@ -1005,8 +1006,10 @@ func _set_menu_medal(icon: TextureRect, name: String, has_score: bool) -> void:
 
 
 func _start_challenge() -> void:
+	if has_saved_run:
+		_resume_challenge()
+		return
 	game_mode = "challenge"
-	_delete_active_run()
 	menu_overlay.visible = false
 	pokedex_overlay.visible = false
 	game_margin.visible = true
@@ -1017,7 +1020,6 @@ func _start_challenge() -> void:
 
 func _start_time_trial() -> void:
 	game_mode = "time_trial"
-	_delete_active_run()
 	menu_overlay.visible = false
 	pokedex_overlay.visible = false
 	game_margin.visible = true
@@ -1032,7 +1034,6 @@ func _start_time_trial() -> void:
 
 func _start_time_attack() -> void:
 	game_mode = "time_attack"
-	_delete_active_run()
 	menu_overlay.visible = false
 	pokedex_overlay.visible = false
 	game_margin.visible = true
@@ -1055,6 +1056,10 @@ func _try_again() -> void:
 func _resume_challenge() -> void:
 	if not has_saved_run or not validation_ready:
 		return
+	if game_mode != "challenge" or run_over:
+		game_mode = "challenge"
+		_reset_run()
+		_load_active_run()
 	menu_overlay.visible = false
 	pokedex_overlay.visible = false
 	game_margin.visible = true
@@ -1066,7 +1071,7 @@ func _resume_challenge() -> void:
 		_add_answer_card(String(data.display_name), String(data.name), bool(data.shiny), false)
 	_update_screen()
 	hint_label.text = active_hint_text
-	timer_label.visible = game_mode == "time_trial" or game_mode == "time_attack"
+	timer_label.visible = false
 	_update_timer_label()
 	_update_hint_button()
 	_open_keyboard()
@@ -2086,7 +2091,8 @@ func _end_run(reason: String, completed_time_trial: bool = false) -> void:
 		_save_stats()
 	run_over = true
 	_save_current_run()
-	_delete_active_run()
+	if game_mode == "challenge":
+		_delete_active_run()
 	DisplayServer.virtual_keyboard_hide()
 	entry.visible = false
 	stumped_button.visible = false
