@@ -106,7 +106,7 @@ var answers_grid: GridContainer
 var grid_name_label: Label
 var completed_rounds_scroll: ScrollContainer
 var completed_rounds_grid: VBoxContainer
-var suggestions_scroll: ScrollContainer
+var suggestions_scroll: VBoxContainer
 var suggestions_label: Label
 var suggestions_grid: HBoxContainer
 var stumped_button: Button
@@ -467,11 +467,11 @@ func _build_ui() -> void:
 	status_label.visible = false
 	layout.add_child(status_label)
 
-	suggestions_scroll = ScrollContainer.new()
+	suggestions_scroll = VBoxContainer.new()
 	suggestions_scroll.visible = false
-	suggestions_scroll.custom_minimum_size = Vector2(0, 112)
+	suggestions_scroll.custom_minimum_size = Vector2(0, 164)
 	suggestions_scroll.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	suggestions_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	suggestions_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	layout.add_child(suggestions_scroll)
 
 	var suggestions_layout := VBoxContainer.new()
@@ -488,6 +488,8 @@ func _build_ui() -> void:
 	suggestions_label = Label.new()
 	suggestions_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	suggestions_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	suggestions_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	suggestions_label.custom_minimum_size = Vector2(0, 36)
 	suggestions_label.add_theme_font_size_override("font_size", 15)
 	suggestions_layout.add_child(suggestions_label)
 
