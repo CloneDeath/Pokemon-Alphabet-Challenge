@@ -167,11 +167,11 @@ func _build_ui() -> void:
 
 	hint_label = Label.new()
 	hint_label.custom_minimum_size = Vector2(102, 86)
-	hint_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint_label.add_theme_font_size_override("font_size", 12)
-	hint_label.add_theme_color_override("font_color", Color("#ffdc52"))
+	hint_label.add_theme_color_override("font_color", Color("#8ee8d0"))
 	current_row.add_child(hint_label)
 
 	grid_name_label = Label.new()
@@ -1154,7 +1154,7 @@ func _update_hint_button() -> void:
 	if not is_instance_valid(hint_button):
 		return
 	hint_button.text = "Hint (%d)" % hints_remaining
-	hint_button.disabled = hints_remaining <= 0 or run_over
+	hint_button.disabled = hints_remaining <= 0 or run_over or (is_instance_valid(hint_label) and not hint_label.text.is_empty())
 
 
 func _use_hint() -> void:
@@ -1218,6 +1218,13 @@ func _on_hint_species_loaded(
 
 func _show_hint(message: String) -> void:
 	hint_label.text = message
+	hint_label.pivot_offset = hint_label.size * 0.5
+	hint_label.scale = Vector2(0.72, 0.72)
+	hint_label.modulate.a = 0.0
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(hint_label, "scale", Vector2.ONE, 0.28).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(hint_label, "modulate:a", 1.0, 0.16)
 	_update_hint_button()
 	entry.grab_focus()
 	entry.edit()
@@ -1265,6 +1272,9 @@ func _update_screen() -> void:
 	letter_label.text = LETTERS[letter_index]
 	if not run_over:
 		hint_label.text = ""
+		hint_label.scale = Vector2.ONE
+		hint_label.modulate.a = 1.0
+		_update_hint_button()
 
 
 func _reset_run() -> void:
