@@ -17,6 +17,7 @@ var validation_ready := false
 var run_over := false
 var run_saved := false
 var current_run_names: Array[String] = []
+var current_run_shinies: Dictionary = {}
 var pokedex_data: Dictionary = {}
 
 var recent_rows: Array[HBoxContainer] = []
@@ -400,7 +401,10 @@ func _populate_pokedex() -> void:
 			details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			details.add_theme_font_size_override("font_size", 12)
 			var count := int(record.get("count", 0))
+				var shiny_count := int(record.get("shiny_count", 0))
 			details.text = "%s\n×%d" % [_pretty_name(api_name), count]
+			if shiny_count > 0:
+				details.text += "  Shiny: %d" % shiny_count
 			card.add_child(details)
 
 			var pokemon_id := int(record.get("id", 0))
@@ -411,7 +415,7 @@ func _populate_pokedex() -> void:
 func _load_sprite_by_id(pokemon_id: int, target: TextureRect) -> void:
 	var request := HTTPRequest.new()
 	add_child(request)
-	request.request_completed.connect(_on_sprite_loaded.bind(request, target, false))
+	request.request_completed.connect(_on_sprite_loaded.bind(request, target, false, false))
 	request.request(SPRITE_URL % pokemon_id)
 
 
@@ -432,6 +436,7 @@ func _save_current_run() -> void:
 	for api_name in current_run_names:
 		var record: Dictionary = pokedex_data.get(api_name, {})
 		record["count"] = int(record.get("count", 0)) + 1
+		record["shiny_count"] = int(record.get("shiny_count", 0)) + int(current_run_shinies.get(api_name, 0))
 		record["id"] = int(pokemon_names.get(api_name, record.get("id", 0)))
 		pokedex_data[api_name] = record
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
@@ -558,8 +563,11 @@ func _submit_answer(raw_answer: String) -> void:
 
 	used_names[api_name] = true
 	current_run_names.append(api_name)
+	var shiny := randi_range(1, 4096) == 1
+	if shiny:
+		current_run_shinies[api_name] = int(current_run_shinies.get(api_name, 0)) + 1
 	answers.append(accepted_answer)
-	_add_answer_card(accepted_answer, api_name)
+	_add_answer_card(accepted_answer, api_name, shiny)
 	letter_index += 1
 	entry.clear()
 	status_label.visible = false
@@ -597,7 +605,7 @@ func _available_names_for_letter(letter: String) -> Array[String]:
 	return available
 
 
-func _add_answer_card(display_name: String, api_name: String) -> void:
+func _add_answer_card(display_name: String, api_name: String, shiny: bool) -> void:
 	var card := VBoxContainer.new()
 	card.custom_minimum_size = Vector2(32, 32)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -632,13 +640,14 @@ func _add_answer_card(display_name: String, api_name: String) -> void:
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_label.add_theme_font_size_override("font_size", 13)
 	recent_row.add_child(name_label)
+	if shiny:
+		_animate_shiny_name(name_label)
 
 	while recent_rows.size() > 3:
 		var oldest := recent_rows.pop_front()
 		oldest.queue_free()
 	_update_recent_opacity()
 
-	var shiny := randi_range(1, 4096) == 1
 	_load_sprite(api_name, compact_sprite, true, shiny)
 	_load_sprite(api_name, recent_sprite, false, shiny)
 
@@ -647,6 +656,15 @@ func _on_answer_card_input(event: InputEvent, display_name: String) -> void:
 	if (event is InputEventScreenTouch and event.pressed) or (event is InputEventMouseButton and event.pressed):
 		grid_name_label.text = display_name
 		grid_name_label.visible = true
+
+
+func _animate_shiny_name(label: Label) -> void:
+	label.add_theme_color_override("font_color", Color("#ffdc52"))
+	var tween := create_tween().set_loops()
+	tween.tween_property(label, "modulate", Color("#ff6b9d"), 0.35)
+	tween.tween_property(label, "modulate", Color("#68e5ff"), 0.35)
+	tween.tween_property(label, "modulate", Color("#9cff68"), 0.35)
+	tween.tween_property(label, "modulate", Color("#ffdc52"), 0.35)
 
 
 func _update_recent_opacity() -> void:
@@ -660,7 +678,7 @@ func _load_sprite(api_name: String, target: TextureRect, animate: bool, shiny: b
 		return
 	var request := HTTPRequest.new()
 	add_child(request)
-	request.request_completed.connect(_on_sprite_loaded.bind(request, target, animate))
+	request.request_completed.connect(_on_sprite_loaded.bind(request, target, animate, shiny))
 	var sprite_url := SHINY_SPRITE_URL if shiny else SPRITE_URL
 	request.request(sprite_url % int(pokemon_names[api_name]))
 
@@ -672,7 +690,8 @@ func _on_sprite_loaded(
 	body: PackedByteArray,
 		request: HTTPRequest,
 	target: TextureRect,
-	animate: bool
+	animate: bool,
+	shiny: bool
 ) -> void:
 	request.queue_free()
 	if response_code != 200 or not is_instance_valid(target):
@@ -683,10 +702,10 @@ func _on_sprite_loaded(
 	var texture := ImageTexture.create_from_image(image)
 	target.texture = texture
 	if animate:
-		_animate_sprite(texture, target)
+		_animate_sprite(texture, target, shiny)
 
 
-func _animate_sprite(texture: Texture2D, target: TextureRect) -> void:
+func _animate_sprite(texture: Texture2D, target: TextureRect, shiny: bool) -> void:
 	await get_tree().process_frame
 	if not is_instance_valid(target):
 		return
@@ -703,34 +722,40 @@ func _animate_sprite(texture: Texture2D, target: TextureRect) -> void:
 	var start := letter_label.global_position + letter_label.size * 0.5 - flying.size * 0.5
 	var destination := target.global_position + target.size * 0.5 - flying.size * 0.5
 	flying.global_position = start
-	flying.scale = Vector2(1.35, 1.35)
+	flying.scale = Vector2(1.75, 1.75) if shiny else Vector2(1.35, 1.35)
+	if shiny:
+		flying.modulate = Color("#fff2a8")
 
 	var tween := create_tween()
 	tween.set_parallel(true)
-	tween.tween_property(flying, "global_position", destination, 0.38).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
-	tween.tween_property(flying, "scale", Vector2.ONE, 0.38)
+	tween.tween_property(flying, "global_position", destination, 0.52 if shiny else 0.38).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	tween.tween_property(flying, "scale", Vector2.ONE, 0.52 if shiny else 0.38)
+	if shiny:
+		tween.tween_property(flying, "modulate", Color.WHITE, 0.52)
 	tween.set_parallel(false)
-	tween.tween_callback(_finish_sprite_flight.bind(flying, target))
+	tween.tween_callback(_finish_sprite_flight.bind(flying, target, shiny))
 
 
-func _finish_sprite_flight(flying: TextureRect, target: TextureRect) -> void:
+func _finish_sprite_flight(flying: TextureRect, target: TextureRect, shiny: bool) -> void:
 	var burst_position := flying.global_position + flying.size * 0.5
 	if is_instance_valid(target):
 		target.modulate.a = 1.0
 	flying.queue_free()
-	_emit_particles(burst_position)
+	_emit_particles(burst_position, shiny)
 
 
-func _emit_particles(center: Vector2) -> void:
-	var colors := [Color("#ffcb05"), Color("#62a8e5"), Color("#ff6b6b")]
-	for index in range(8):
+func _emit_particles(center: Vector2, shiny: bool) -> void:
+	var colors := [Color("#ff4f81"), Color("#ffcb05"), Color("#62e5ff"), Color("#8aff70"), Color("#a87cff")] if shiny else [Color("#ffcb05"), Color("#62a8e5"), Color("#ff6b6b")]
+	var particle_count := 20 if shiny else 8
+	for index in range(particle_count):
 		var particle := ColorRect.new()
 		particle.color = colors[index % colors.size()]
 		particle.size = Vector2(6, 6)
 		particle.global_position = center - particle.size * 0.5
 		add_child(particle)
-		var angle := TAU * float(index) / 8.0
-		var destination := particle.position + Vector2.from_angle(angle) * 34.0
+		var angle := TAU * float(index) / float(particle_count)
+		var distance := 52.0 if shiny else 34.0
+		var destination := particle.position + Vector2.from_angle(angle) * distance
 		var tween := create_tween()
 		tween.set_parallel(true)
 		tween.tween_property(particle, "position", destination, 0.32)
@@ -844,6 +869,7 @@ func _reset_run() -> void:
 	run_over = false
 	run_saved = false
 	current_run_names.clear()
+	current_run_shinies.clear()
 	answers.clear()
 	used_names.clear()
 	for row in recent_rows:
