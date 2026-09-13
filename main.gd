@@ -1454,7 +1454,50 @@ func _alphabet_count_text(count: int) -> String:
 	return "%d alphabet" % count if count == 1 else "%d alphabets" % count
 
 
-func _end_run(reason: String) -> void:
+func _time_trial_goal(seconds: float, completed: bool) -> String:
+	if not completed or seconds > 120.0:
+		return "Try to finish in under 2 minutes for Bronze!"
+	if seconds > 60.0:
+		return "Try to finish in under 60 seconds for Silver!"
+	if seconds > 26.0:
+		return "Try to finish in under 26 seconds for Gold!"
+	return ""
+
+
+func _show_time_trial_medal(seconds: float) -> void:
+	medal_label.visible = true
+	var medal_style := StyleBoxFlat.new()
+	medal_style.corner_radius_top_left = 12
+	medal_style.corner_radius_top_right = 12
+	medal_style.corner_radius_bottom_left = 12
+	medal_style.corner_radius_bottom_right = 12
+	medal_style.content_margin_top = 8
+	medal_style.content_margin_bottom = 8
+	medal_style.content_margin_left = 12
+	medal_style.content_margin_right = 12
+	if seconds <= 26.0:
+		medal_label.text = "GOLD MEDAL"
+		medal_style.bg_color = Color("#d7a900")
+		medal_label.add_theme_color_override("font_color", Color("#fff4b0"))
+	elif seconds <= 60.0:
+		medal_label.text = "SILVER MEDAL"
+		medal_style.bg_color = Color("#7f91a5")
+		medal_label.add_theme_color_override("font_color", Color("#f1f5f9"))
+	elif seconds <= 120.0:
+		medal_label.text = "BRONZE MEDAL"
+		medal_style.bg_color = Color("#a75b2a")
+		medal_label.add_theme_color_override("font_color", Color("#ffd0a4"))
+	else:
+		medal_label.text = "PARTICIPATION MEDAL"
+		medal_style.bg_color = Color("#6d963f")
+		medal_label.add_theme_color_override("font_color", Color("#d784e8"))
+	medal_label.add_theme_stylebox_override("normal", medal_style)
+
+
+func _end_run(reason: String, completed_time_trial: bool = false) -> void:
+	if game_mode == "time_trial":
+		elapsed_time = Time.get_unix_time_from_system() - time_trial_started_at
+		_update_timer_label()
 	run_over = true
 	_save_current_run()
 	_delete_active_run()
@@ -1467,9 +1510,43 @@ func _end_run(reason: String) -> void:
 	suggestions_scroll.visible = true
 	current_row.get_parent().move_child(suggestions_scroll, current_row.get_index())
 	results_buttons.visible = true
+	medal_label.visible = false
 
 	for child in suggestions_grid.get_children():
 		child.queue_free()
+
+	if game_mode == "time_trial":
+		var goal := _time_trial_goal(elapsed_time, completed_time_trial)
+		if completed_time_trial:
+			_show_time_trial_medal(elapsed_time)
+			var is_new_best := has_time_trial_best and elapsed_time < time_trial_best
+			if not has_time_trial_best or elapsed_time < time_trial_best:
+				time_trial_best = elapsed_time
+				has_time_trial_best = true
+				_save_stats()
+			status_label.text = "Finished in %s" % _format_time(elapsed_time)
+			if is_new_best:
+				status_label.text += "  (Best!)"
+			suggestions_label.text = goal
+		else:
+			status_label.text = "%s  •  %s" % [reason, _format_time(elapsed_time)]
+			_populate_possible_answers(goal)
+	else:
+		_populate_possible_answers("")
+		var is_new_best := has_high_score and answers.size() > high_score
+		if not has_high_score or answers.size() > high_score:
+			high_score = answers.size()
+			has_high_score = true
+			_save_stats()
+		status_label.text = "%s  •  %s  •  %d Pokémon" % [reason, _alphabet_count_text(rounds_completed), answers.size()]
+		if is_new_best:
+			status_label.text += "  (Best!)"
+
+	status_label.visible = true
+	_update_screen()
+
+
+func _populate_possible_answers(prefix: String) -> void:
 	var possible := _available_names_for_letter(LETTERS[letter_index])
 	if not active_hint_pokemon.is_empty() and possible.has(active_hint_pokemon):
 		possible.erase(active_hint_pokemon)
@@ -1477,8 +1554,10 @@ func _end_run(reason: String) -> void:
 	suggestions_label.text = "Possible %s answers" % LETTERS[letter_index]
 	if not active_hint_text.is_empty():
 		suggestions_label.text = "%s\n%s" % [active_hint_text, suggestions_label.text]
+	if not prefix.is_empty():
+		suggestions_label.text = "%s\n%s" % [prefix, suggestions_label.text]
 	if possible.is_empty():
-		suggestions_label.text = "No unused answers remained."
+		suggestions_label.text = prefix if not prefix.is_empty() else "No unused answers remained."
 	for index in range(mini(3, possible.size())):
 		var api_name := possible[index]
 		var card := VBoxContainer.new()
@@ -1499,16 +1578,6 @@ func _end_run(reason: String) -> void:
 		answer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		answer_label.add_theme_font_size_override("font_size", 14)
 		card.add_child(answer_label)
-	var is_new_best := has_high_score and answers.size() > high_score
-	if not has_high_score or answers.size() > high_score:
-		high_score = answers.size()
-		has_high_score = true
-		_save_stats()
-	status_label.text = "%s  •  %s  •  %d Pokémon" % [reason, _alphabet_count_text(rounds_completed), answers.size()]
-	if is_new_best:
-		status_label.text += "  (Best!)"
-	status_label.visible = true
-	_update_screen()
 
 
 func _update_screen() -> void:
