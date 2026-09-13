@@ -3,6 +3,7 @@ extends Control
 const LETTERS := "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 const POKEAPI_URL := "https://pokeapi.co/api/v2/pokemon-species?limit=2000"
 const SPRITE_URL := "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/%d.png"
+const SHINY_SPRITE_URL := "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/%d.png"
 const FONT_URL := "https://raw.githubusercontent.com/google/fonts/main/ofl/pixelifysans/PixelifySans%5Bwght%5D.ttf"
 const BUILD_INFO = preload("res://build_info.gd")
 
@@ -176,7 +177,7 @@ func _update_grid_columns() -> void:
 	if not is_instance_valid(answers_grid):
 		return
 	var available_width := get_viewport_rect().size.x - 32.0
-	answers_grid.columns = clampi(int(available_width / 68.0), 3, 7)
+	answers_grid.columns = clampi(int(available_width / 38.0), 6, 12)
 
 
 func _on_entry_gui_input(event: InputEvent) -> void:
@@ -327,13 +328,13 @@ func _available_names_for_letter(letter: String) -> Array[String]:
 
 func _add_answer_card(display_name: String, api_name: String) -> void:
 	var card := VBoxContainer.new()
-	card.custom_minimum_size = Vector2(52, 52)
+	card.custom_minimum_size = Vector2(32, 32)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card.alignment = BoxContainer.ALIGNMENT_CENTER
 	answers_grid.add_child(card)
 
 	var compact_sprite := TextureRect.new()
-	compact_sprite.custom_minimum_size = Vector2(48, 48)
+	compact_sprite.custom_minimum_size = Vector2(30, 30)
 	compact_sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	compact_sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	compact_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -342,6 +343,7 @@ func _add_answer_card(display_name: String, api_name: String) -> void:
 	var recent_row := HBoxContainer.new()
 	recent_row.custom_minimum_size = Vector2(0, 28)
 	recent_list.add_child(recent_row)
+	recent_list.move_child(recent_row, 0)
 	recent_rows.append(recent_row)
 
 	var recent_sprite := TextureRect.new()
@@ -361,17 +363,19 @@ func _add_answer_card(display_name: String, api_name: String) -> void:
 		var oldest := recent_rows.pop_front()
 		oldest.queue_free()
 
-	_load_sprite(api_name, compact_sprite, true)
-	_load_sprite(api_name, recent_sprite, false)
+	var shiny := randi_range(1, 8192) == 1
+	_load_sprite(api_name, compact_sprite, true, shiny)
+	_load_sprite(api_name, recent_sprite, false, shiny)
 
 
-func _load_sprite(api_name: String, target: TextureRect, animate: bool) -> void:
+func _load_sprite(api_name: String, target: TextureRect, animate: bool, shiny: bool) -> void:
 	if not pokemon_names.has(api_name):
 		return
 	var request := HTTPRequest.new()
 	add_child(request)
 	request.request_completed.connect(_on_sprite_loaded.bind(request, target, animate))
-	request.request(SPRITE_URL % int(pokemon_names[api_name]))
+	var sprite_url := SHINY_SPRITE_URL if shiny else SPRITE_URL
+	request.request(sprite_url % int(pokemon_names[api_name]))
 
 
 func _on_sprite_loaded(
