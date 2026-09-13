@@ -133,9 +133,11 @@ var time_trial_button: Button
 var time_trial_score_label: Label
 var time_attack_score_label: Label
 var infinite_score_label: Label
+var pokedex_score_label: Label
 var time_trial_medal_icon: TextureRect
 var time_attack_medal_icon: TextureRect
 var infinite_medal_icon: TextureRect
+var pokedex_medal_icon: TextureRect
 var restore_dialog: FileDialog
 var settings_popup: PopupPanel
 var pokedex_list: VBoxContainer
@@ -712,11 +714,21 @@ func _build_main_menu() -> void:
 	infinite_row.add_child(infinite_medal_icon)
 	infinite_row.add_child(infinite_score_label)
 
+	var pokedex_row := HBoxContainer.new()
+	pokedex_row.add_theme_constant_override("separation", 8)
+	menu.add_child(pokedex_row)
+
 	pokedex_button = Button.new()
 	pokedex_button.text = "Pokédex"
 	pokedex_button.custom_minimum_size = Vector2(0, 48)
+	pokedex_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	pokedex_button.pressed.connect(_show_pokedex)
-	menu.add_child(pokedex_button)
+	pokedex_row.add_child(pokedex_button)
+
+	pokedex_medal_icon = _create_menu_medal_icon()
+	pokedex_row.add_child(pokedex_medal_icon)
+	pokedex_score_label = _create_menu_score_label()
+	pokedex_row.add_child(pokedex_score_label)
 
 	var settings_button := Button.new()
 	settings_button.icon = GEAR_ICON
@@ -976,6 +988,12 @@ func _refresh_main_menu() -> void:
 		_alphabet_count_text(infinite_best_alphabets), high_score
 	]
 	_set_menu_medal(infinite_medal_icon, _infinite_medal_name(infinite_best_alphabets), has_high_score)
+	var discovered := pokedex_data.size()
+	var total := pokemon_names.size()
+	pokedex_button.get_parent().visible = discovered > 0
+	pokedex_score_label.text = "%d / %s" % [discovered, str(total) if total > 0 else "..."]
+	var pokedex_medal := _pokedex_medal_name(discovered, total)
+	_set_menu_medal(pokedex_medal_icon, pokedex_medal, pokedex_medal != "No medal")
 
 
 func _set_menu_medal(icon: TextureRect, name: String, has_score: bool) -> void:
@@ -1355,6 +1373,7 @@ func _on_pokemon_list_loaded(
 	validation_ready = true
 	if is_instance_valid(resume_button):
 		resume_button.disabled = false
+	_refresh_main_menu()
 	status_label.visible = false
 	_skip_unavailable_letters()
 	_update_screen()
@@ -1991,6 +2010,19 @@ func _infinite_medal_name(alphabets: int) -> String:
 	if alphabets >= 7: return "Emerald"
 	if alphabets >= 5: return "Ruby"
 	if alphabets >= 3: return "Sapphire"
+	return "No medal"
+
+
+func _pokedex_medal_name(discovered: int, total: int) -> String:
+	if total > 0 and discovered >= total: return "Platinum"
+	if discovered >= 1000: return "Diamond"
+	if discovered >= 900: return "Pearl"
+	if discovered >= 800: return "Crystal"
+	if discovered >= 700: return "Gold"
+	if discovered >= 600: return "Silver"
+	if discovered >= 500: return "Emerald"
+	if discovered >= 400: return "Ruby"
+	if discovered >= 300: return "Sapphire"
 	return "No medal"
 
 
