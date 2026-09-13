@@ -6,6 +6,7 @@ const SPRITE_URL := "https://raw.githubusercontent.com/PokeAPI/sprites/master/sp
 const SHINY_SPRITE_URL := "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/%d.png"
 const FONT_URL := "https://raw.githubusercontent.com/google/fonts/main/ofl/fredoka/Fredoka%5Bwdth%2Cwght%5D.ttf"
 const SAVE_PATH := "user://pokedex.json"
+const ACTIVE_RUN_PATH := "user://active_run.json"
 const STARTER_NAMES := {
 	"bulbasaur": true, "charmander": true, "squirtle": true,
 	"chikorita": true, "cyndaquil": true, "totodile": true,
@@ -55,6 +56,7 @@ var validation_ready := false
 var run_over := false
 var run_saved := false
 var hints_remaining := 3
+var has_saved_run := false
 var current_run_names: Array[String] = []
 var current_run_shinies: Dictionary = {}
 var current_round_entries: Array[Dictionary] = []
@@ -86,12 +88,14 @@ var game_margin: MarginContainer
 var menu_overlay: Control
 var pokedex_overlay: Control
 var pokedex_button: Button
+var resume_button: Button
 var pokedex_list: VBoxContainer
 var pokedex_grids: Array[GridContainer] = []
 
 
 func _ready() -> void:
 	_load_save()
+	_load_active_run()
 	_build_ui()
 	get_viewport().size_changed.connect(_update_grid_columns)
 	_update_grid_columns()
@@ -367,12 +371,27 @@ func _build_main_menu() -> void:
 	title.add_theme_color_override("font_color", Color("#ffcb05"))
 	menu.add_child(title)
 
+	var run_buttons := HBoxContainer.new()
+	run_buttons.add_theme_constant_override("separation", 8)
+	menu.add_child(run_buttons)
+
+	resume_button = Button.new()
+	resume_button.text = "Resume"
+	resume_button.visible = has_saved_run
+	resume_button.disabled = not validation_ready
+	resume_button.custom_minimum_size = Vector2(0, 54)
+	resume_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	resume_button.add_theme_font_size_override("font_size", 17)
+	resume_button.pressed.connect(_resume_challenge)
+	run_buttons.add_child(resume_button)
+
 	var start_button := Button.new()
-	start_button.text = "Start the Challenge"
+	start_button.text = "Start New"
 	start_button.custom_minimum_size = Vector2(0, 54)
-	start_button.add_theme_font_size_override("font_size", 19)
+	start_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	start_button.add_theme_font_size_override("font_size", 17)
 	start_button.pressed.connect(_start_challenge)
-	menu.add_child(start_button)
+	run_buttons.add_child(start_button)
 
 	pokedex_button = Button.new()
 	pokedex_button.text = "Pokédex"
@@ -434,13 +453,34 @@ func _show_main_menu() -> void:
 	pokedex_overlay.visible = false
 	menu_overlay.visible = true
 	pokedex_button.visible = not pokedex_data.is_empty()
+	resume_button.visible = has_saved_run
+	resume_button.disabled = not validation_ready
 
 
 func _start_challenge() -> void:
+	_delete_active_run()
 	menu_overlay.visible = false
 	pokedex_overlay.visible = false
 	game_margin.visible = true
 	_reset_run()
+	_save_active_run()
+	_open_keyboard()
+
+
+func _resume_challenge() -> void:
+	if not has_saved_run or not validation_ready:
+		return
+	menu_overlay.visible = false
+	pokedex_overlay.visible = false
+	game_margin.visible = true
+	for snapshot in completed_round_entries:
+		_add_completed_round_square(snapshot, completed_rounds_grid.get_child_count() + 1)
+	if not completed_round_entries.is_empty():
+		completed_rounds_scroll.visible = true
+	for item in current_round_entries:
+		var data: Dictionary = item
+		_add_answer_card(String(data.display_name), String(data.name), bool(data.shiny))
+	_update_screen()
 	_open_keyboard()
 
 
@@ -528,6 +568,57 @@ func _load_save() -> void:
 	var parsed = JSON.parse_string(file.get_as_text())
 	if typeof(parsed) == TYPE_DICTIONARY:
 		pokedex_data = parsed
+
+
+func _load_active_run() -> void:
+	if not FileAccess.file_exists(ACTIVE_RUN_PATH):
+		return
+	var file := FileAccess.open(ACTIVE_RUN_PATH, FileAccess.READ)
+	if file == null:
+		return
+	var data = JSON.parse_string(file.get_as_text())
+	if typeof(data) != TYPE_DICTIONARY:
+		return
+	letter_index = int(data.get("letter_index", 0))
+	rounds_completed = int(data.get("rounds_completed", 0))
+	hints_remaining = int(data.get("hints_remaining", 3))
+	used_names = Dictionary(data.get("used_names", {}))
+	current_run_shinies = Dictionary(data.get("current_run_shinies", {}))
+	for value in data.get("answers", []):
+		answers.append(String(value))
+	for value in data.get("current_run_names", []):
+		current_run_names.append(String(value))
+	for value in data.get("current_round_entries", []):
+		current_round_entries.append(Dictionary(value))
+	for value in data.get("completed_round_entries", []):
+		completed_round_entries.append(Array(value))
+	has_saved_run = true
+
+
+func _save_active_run() -> void:
+	if run_over:
+		return
+	var data := {
+		"letter_index": letter_index,
+		"rounds_completed": rounds_completed,
+		"hints_remaining": hints_remaining,
+		"answers": answers,
+		"used_names": used_names,
+		"current_run_names": current_run_names,
+		"current_run_shinies": current_run_shinies,
+		"current_round_entries": current_round_entries,
+		"completed_round_entries": completed_round_entries
+	}
+	var file := FileAccess.open(ACTIVE_RUN_PATH, FileAccess.WRITE)
+	if file != null:
+		file.store_string(JSON.stringify(data))
+		has_saved_run = true
+
+
+func _delete_active_run() -> void:
+	has_saved_run = false
+	if FileAccess.file_exists(ACTIVE_RUN_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(ACTIVE_RUN_PATH))
 
 
 func _save_current_run() -> void:
@@ -629,6 +720,8 @@ func _on_pokemon_list_loaded(
 		var url := String(item.url).trim_suffix("/")
 		pokemon_names[name] = int(url.get_file())
 	validation_ready = true
+	if is_instance_valid(resume_button):
+		resume_button.disabled = false
 	status_label.visible = false
 	_skip_unavailable_letters()
 	_update_screen()
@@ -682,6 +775,7 @@ func _submit_answer(raw_answer: String) -> void:
 		letter_index = 0
 	_skip_unavailable_letters()
 	_update_screen()
+	_save_active_run()
 	entry.grab_focus()
 	entry.edit()
 	call_deferred("_scroll_to_latest")
@@ -779,13 +873,18 @@ func _complete_round_display() -> void:
 	var snapshot: Array = current_round_entries.duplicate(true)
 	completed_round_entries.append(snapshot)
 	current_round_entries.clear()
-	completed_rounds_scroll.visible = true
+	_add_completed_round_square(snapshot, rounds_completed)
+	for child in answers_grid.get_children():
+		child.queue_free()
 
+
+func _add_completed_round_square(snapshot: Array, round_number: int) -> void:
+	completed_rounds_scroll.visible = true
 	var square := PanelContainer.new()
 	square.custom_minimum_size = Vector2(70, 70)
-	square.tooltip_text = "Alphabet %d — %d Pokémon" % [rounds_completed, snapshot.size()]
+	square.tooltip_text = "Alphabet %d — %d Pokémon" % [round_number, snapshot.size()]
 	square.mouse_filter = Control.MOUSE_FILTER_STOP
-	square.gui_input.connect(_on_round_square_input.bind(snapshot, rounds_completed))
+	square.gui_input.connect(_on_round_square_input.bind(snapshot, round_number))
 	completed_rounds_grid.add_child(square)
 
 	var preview := GridContainer.new()
@@ -805,9 +904,6 @@ func _complete_round_display() -> void:
 		sprite.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		preview.add_child(sprite)
 		_load_sprite(String(item.name), sprite, false, bool(item.shiny))
-
-	for child in answers_grid.get_children():
-		child.queue_free()
 	call_deferred("_scroll_completed_rounds_to_end")
 
 
@@ -1070,6 +1166,7 @@ func _use_hint() -> void:
 	var candidate := _pick_hint_candidate(possible)
 	hints_remaining -= 1
 	_update_hint_button()
+	_save_active_run()
 
 	if STARTER_NAMES.has(candidate):
 		_show_hint("It's a starter.")
@@ -1140,6 +1237,7 @@ func _alphabet_count_text(count: int) -> String:
 func _end_run(reason: String) -> void:
 	run_over = true
 	_save_current_run()
+	_delete_active_run()
 	DisplayServer.virtual_keyboard_hide()
 	entry.visible = false
 	stumped_button.visible = false
