@@ -72,6 +72,8 @@ var infinite_best_alphabets := 0
 var infinite_mode_unlocked := false
 var has_time_trial_best := false
 var time_trial_best := 0.0
+var time_trial_best_alphabets := 0
+var time_trial_best_pokemon := 0
 var time_attack_unlocked := false
 var has_time_attack_high_score := false
 var time_attack_high_score := 0
@@ -838,7 +840,9 @@ func _stats_data() -> Dictionary:
 		"infinite_best_alphabets": infinite_best_alphabets,
 		"infinite_mode_unlocked": infinite_mode_unlocked,
 		"time_attack_unlocked": time_attack_unlocked,
-		"time_attack_best_alphabets": time_attack_best_alphabets
+		"time_attack_best_alphabets": time_attack_best_alphabets,
+		"time_trial_best_alphabets": time_trial_best_alphabets,
+		"time_trial_best_pokemon": time_trial_best_pokemon
 	}
 	if has_time_trial_best:
 		data["time_trial_best"] = time_trial_best
@@ -960,16 +964,16 @@ func _refresh_main_menu() -> void:
 	time_attack_button.get_parent().visible = time_attack_unlocked
 	time_trial_button.get_parent().visible = infinite_mode_unlocked
 	time_trial_button.visible = infinite_mode_unlocked
-	time_trial_score_label.text = "" if not has_time_trial_best else "%s\n%s" % [
-		_format_time(time_trial_best), _time_trial_medal_name(time_trial_best)
+	time_trial_score_label.text = "" if not has_time_trial_best else "%s\n%s\n%d Pokémon" % [
+		_alphabet_count_text(time_trial_best_alphabets), _format_time(time_trial_best), time_trial_best_pokemon
 	]
 	_set_menu_medal(time_trial_medal_icon, _time_trial_medal_name(time_trial_best), has_time_trial_best)
-	time_attack_score_label.text = "" if not has_time_attack_high_score else "%d Pokémon\n%s" % [
-		time_attack_high_score, _time_attack_medal_name(time_attack_best_alphabets)
+	time_attack_score_label.text = "" if not has_time_attack_high_score else "%s\n%d Pokémon" % [
+		_alphabet_count_text(time_attack_best_alphabets), time_attack_high_score
 	]
 	_set_menu_medal(time_attack_medal_icon, _time_attack_medal_name(time_attack_best_alphabets), has_time_attack_high_score)
-	infinite_score_label.text = "" if not has_high_score else "%d Pokémon\n%s" % [
-		high_score, _infinite_medal_name(infinite_best_alphabets)
+	infinite_score_label.text = "" if not has_high_score else "%s\n%d Pokémon" % [
+		_alphabet_count_text(infinite_best_alphabets), high_score
 	]
 	_set_menu_medal(infinite_medal_icon, _infinite_medal_name(infinite_best_alphabets), has_high_score)
 
@@ -1146,16 +1150,18 @@ func _load_stats() -> void:
 	if data.has("high_score"):
 		high_score = int(data.high_score)
 		has_high_score = true
-	infinite_best_alphabets = int(data.get("infinite_best_alphabets", high_score / 26))
+	infinite_best_alphabets = int(data.get("infinite_best_alphabets", 0))
 	infinite_mode_unlocked = bool(data.get("infinite_mode_unlocked", false))
 	time_attack_unlocked = bool(data.get("time_attack_unlocked", infinite_mode_unlocked))
 	if data.has("time_trial_best"):
 		time_trial_best = float(data.time_trial_best)
 		has_time_trial_best = true
+		time_trial_best_alphabets = int(data.get("time_trial_best_alphabets", 1))
+		time_trial_best_pokemon = int(data.get("time_trial_best_pokemon", 26))
 	if data.has("time_attack_high_score"):
 		time_attack_high_score = int(data.time_attack_high_score)
 		has_time_attack_high_score = true
-	time_attack_best_alphabets = int(data.get("time_attack_best_alphabets", time_attack_high_score / 26))
+	time_attack_best_alphabets = int(data.get("time_attack_best_alphabets", 0))
 
 
 func _save_stats() -> void:
@@ -2032,19 +2038,8 @@ func _show_medal(name: String) -> void:
 	medal_icon.texture = _medal_texture(name)
 	medal_icon.visible = true
 	medal_label.visible = true
-	var medal_style := StyleBoxFlat.new()
-	medal_style.corner_radius_top_left = 12
-	medal_style.corner_radius_top_right = 12
-	medal_style.corner_radius_bottom_left = 12
-	medal_style.corner_radius_bottom_right = 12
-	medal_style.content_margin_top = 8
-	medal_style.content_margin_bottom = 8
-	medal_style.content_margin_left = 12
-	medal_style.content_margin_right = 12
-	medal_label.text = "%s MEDAL" % name.to_upper()
-	medal_style.bg_color = _medal_color(name)
+	medal_label.text = "%s\n%d Pokémon" % [_alphabet_count_text(rounds_completed), answers.size()]
 	medal_label.add_theme_color_override("font_color", Color("#ffffff"))
-	medal_label.add_theme_stylebox_override("normal", medal_style)
 
 
 func _end_run(reason: String, completed_time_trial: bool = false) -> void:
@@ -2078,6 +2073,8 @@ func _end_run(reason: String, completed_time_trial: bool = false) -> void:
 			var is_new_best := has_time_trial_best and elapsed_time < time_trial_best
 			if not has_time_trial_best or elapsed_time < time_trial_best:
 				time_trial_best = elapsed_time
+				time_trial_best_alphabets = rounds_completed
+				time_trial_best_pokemon = answers.size()
 				has_time_trial_best = true
 				_save_stats()
 			status_label.text = "Finished in %s" % _format_time(elapsed_time)
@@ -2088,11 +2085,11 @@ func _end_run(reason: String, completed_time_trial: bool = false) -> void:
 			status_label.text = "%s  •  %s" % [reason, _format_time(elapsed_time)]
 			_populate_possible_answers(goal)
 	elif game_mode == "time_attack":
-		var is_new_best := has_time_attack_high_score and answers.size() > time_attack_high_score
-		if not has_time_attack_high_score or answers.size() > time_attack_high_score:
+		var is_new_best := has_time_attack_high_score and (rounds_completed > time_attack_best_alphabets or (rounds_completed == time_attack_best_alphabets and answers.size() > time_attack_high_score))
+		if not has_time_attack_high_score or is_new_best:
 			time_attack_high_score = answers.size()
+			time_attack_best_alphabets = rounds_completed
 			has_time_attack_high_score = true
-		time_attack_best_alphabets = maxi(time_attack_best_alphabets, rounds_completed)
 		_save_stats()
 		_show_medal(_time_attack_medal_name(rounds_completed))
 		_populate_possible_answers(_time_attack_goal(rounds_completed))
@@ -2102,11 +2099,11 @@ func _end_run(reason: String, completed_time_trial: bool = false) -> void:
 	else:
 		_show_medal(_infinite_medal_name(rounds_completed))
 		_populate_possible_answers(_infinite_goal(rounds_completed))
-		var is_new_best := has_high_score and answers.size() > high_score
-		if not has_high_score or answers.size() > high_score:
+		var is_new_best := has_high_score and (rounds_completed > infinite_best_alphabets or (rounds_completed == infinite_best_alphabets and answers.size() > high_score))
+		if not has_high_score or is_new_best:
 			high_score = answers.size()
+			infinite_best_alphabets = rounds_completed
 			has_high_score = true
-		infinite_best_alphabets = maxi(infinite_best_alphabets, rounds_completed)
 		_save_stats()
 		status_label.text = "%s  •  %s  •  %d Pokémon" % [reason, _alphabet_count_text(rounds_completed), answers.size()]
 		if is_new_best:
