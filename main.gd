@@ -363,7 +363,7 @@ func _add_answer_card(display_name: String, api_name: String) -> void:
 		var oldest := recent_rows.pop_front()
 		oldest.queue_free()
 
-	var shiny := randi_range(1, 8192) == 1
+	var shiny := randi_range(1, 4096) == 1
 	_load_sprite(api_name, compact_sprite, true, shiny)
 	_load_sprite(api_name, recent_sprite, false, shiny)
 
