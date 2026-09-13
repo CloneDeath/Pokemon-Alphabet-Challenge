@@ -200,7 +200,7 @@ func _build_ui() -> void:
 
 	completed_rounds_grid = HFlowContainer.new()
 	completed_rounds_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	completed_rounds_grid.alignment = BoxContainer.ALIGNMENT_BEGIN
+	completed_rounds_grid.alignment = FlowContainer.ALIGNMENT_BEGIN
 	completed_rounds_grid.add_theme_constant_override("h_separation", 6)
 	completed_rounds_grid.add_theme_constant_override("v_separation", 6)
 	completed_rounds_scroll.add_child(completed_rounds_grid)
@@ -875,7 +875,7 @@ func _add_answer_card(display_name: String, api_name: String, shiny: bool, anima
 		_animate_shiny_name(name_label)
 
 	while recent_rows.size() > 3:
-		var oldest := recent_rows.pop_front()
+		var oldest: HBoxContainer = recent_rows.pop_front()
 		oldest.queue_free()
 	_update_recent_opacity()
 
