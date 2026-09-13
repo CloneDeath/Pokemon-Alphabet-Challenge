@@ -19,7 +19,7 @@ var run_saved := false
 var current_run_names: Array[String] = []
 var current_run_shinies: Dictionary = {}
 var current_round_entries: Array[Dictionary] = []
-var completed_round_entries: Array[Array] = []
+var completed_round_entries: Array = []
 var pokedex_data: Dictionary = {}
 
 var recent_rows: Array[HBoxContainer] = []
@@ -608,6 +608,7 @@ func _skip_unavailable_letters() -> void:
 		checked += 1
 		if letter_index >= LETTERS.length():
 			rounds_completed += 1
+			_complete_round_display()
 			letter_index = 0
 	if checked >= LETTERS.length():
 		_end_run("You used every available Pokémon!")
