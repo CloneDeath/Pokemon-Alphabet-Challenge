@@ -6,6 +6,17 @@ const SPRITE_URL := "https://raw.githubusercontent.com/PokeAPI/sprites/master/sp
 const SHINY_SPRITE_URL := "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/%d.png"
 const FONT_URL := "https://raw.githubusercontent.com/google/fonts/main/ofl/fredoka/Fredoka%5Bwdth%2Cwght%5D.ttf"
 const SAVE_PATH := "user://pokedex.json"
+const STARTER_NAMES := {
+	"bulbasaur": true, "charmander": true, "squirtle": true,
+	"chikorita": true, "cyndaquil": true, "totodile": true,
+	"treecko": true, "torchic": true, "mudkip": true,
+	"turtwig": true, "chimchar": true, "piplup": true,
+	"snivy": true, "tepig": true, "oshawott": true,
+	"chespin": true, "fennekin": true, "froakie": true,
+	"rowlet": true, "litten": true, "popplio": true,
+	"grookey": true, "scorbunny": true, "sobble": true,
+	"sprigatito": true, "fuecoco": true, "quaxly": true
+}
 const BUILD_INFO = preload("res://build_info.gd")
 
 var letter_index := 0
@@ -16,6 +27,7 @@ var pokemon_names: Dictionary = {}
 var validation_ready := false
 var run_over := false
 var run_saved := false
+var hints_remaining := 3
 var current_run_names: Array[String] = []
 var current_run_shinies: Dictionary = {}
 var current_round_entries: Array[Dictionary] = []
@@ -36,6 +48,8 @@ var completed_rounds_grid: HBoxContainer
 var suggestions_scroll: ScrollContainer
 var suggestions_label: Label
 var stumped_button: Button
+var hint_button: Button
+var info_popup: Label
 var results_buttons: HBoxContainer
 var try_again_button: Button
 var restart_button: Button
@@ -182,7 +196,19 @@ func _build_ui() -> void:
 	give_up_style.content_margin_bottom = 5
 	stumped_button.add_theme_stylebox_override("normal", give_up_style)
 	stumped_button.pressed.connect(_ask_give_up)
-	layout.add_child(stumped_button)
+
+	var action_row := HBoxContainer.new()
+	action_row.add_theme_constant_override("separation", 8)
+	layout.add_child(action_row)
+	action_row.add_child(stumped_button)
+
+	hint_button = Button.new()
+	hint_button.focus_mode = Control.FOCUS_NONE
+	hint_button.custom_minimum_size = Vector2(112, 0)
+	hint_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hint_button.pressed.connect(_use_hint)
+	action_row.add_child(hint_button)
+	_update_hint_button()
 
 	status_label = Label.new()
 	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -207,7 +233,7 @@ func _build_ui() -> void:
 
 	# Keep controls above content that the phone keyboard may cover.
 	layout.move_child(input_row, 2)
-	layout.move_child(stumped_button, 3)
+	layout.move_child(action_row, 3)
 	layout.move_child(status_label, 4)
 
 	results_buttons = HBoxContainer.new()
@@ -251,6 +277,28 @@ func _build_ui() -> void:
 	give_up_confirmation.cancel_button_text = "Keep Playing"
 	give_up_confirmation.confirmed.connect(_confirm_stumped)
 	add_child(give_up_confirmation)
+
+	info_popup = Label.new()
+	info_popup.visible = false
+	info_popup.z_index = 20
+	info_popup.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	info_popup.add_theme_font_size_override("font_size", 16)
+	info_popup.add_theme_color_override("font_color", Color.WHITE)
+	var info_style := StyleBoxFlat.new()
+	info_style.bg_color = Color("#30486f")
+	info_style.corner_radius_top_left = 10
+	info_style.corner_radius_top_right = 10
+	info_style.corner_radius_bottom_left = 10
+	info_style.corner_radius_bottom_right = 10
+	info_style.content_margin_left = 14
+	info_style.content_margin_right = 14
+	info_style.content_margin_top = 8
+	info_style.content_margin_bottom = 8
+	info_popup.add_theme_stylebox_override("normal", info_style)
+	info_popup.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	info_popup.position = Vector2(-95, 82)
+	info_popup.size = Vector2(190, 42)
+	add_child(info_popup)
 
 	_build_main_menu()
 	_build_pokedex_screen()
@@ -573,7 +621,10 @@ func _submit_answer(raw_answer: String) -> void:
 		accepted_answer = _pretty_name(api_name)
 
 	if used_names.has(api_name):
-		_show_error("You already used that Pokémon.")
+		entry.clear()
+		entry.grab_focus()
+		entry.edit()
+		_show_info_popup("Already guessed that one")
 		return
 
 	used_names[api_name] = true
@@ -686,6 +737,8 @@ func _animate_shiny_name(label: Label) -> void:
 
 
 func _complete_round_display() -> void:
+	hints_remaining = mini(3, hints_remaining + 1)
+	_update_hint_button()
 	var snapshot: Array = current_round_entries.duplicate(true)
 	completed_round_entries.append(snapshot)
 	current_round_entries.clear()
@@ -954,6 +1007,109 @@ func _show_error(message: String) -> void:
 	entry.edit()
 
 
+func _show_info_popup(message: String) -> void:
+	info_popup.text = message
+	info_popup.visible = true
+	info_popup.modulate.a = 1.0
+	var tween := create_tween()
+	tween.tween_interval(1.0)
+	tween.tween_property(info_popup, "modulate:a", 0.0, 0.25)
+	tween.tween_callback(func(): info_popup.visible = false)
+
+
+func _update_hint_button() -> void:
+	if not is_instance_valid(hint_button):
+		return
+	hint_button.text = "Hint (%d)" % hints_remaining
+	hint_button.disabled = hints_remaining <= 0 or run_over
+
+
+func _use_hint() -> void:
+	if run_over or hints_remaining <= 0 or not validation_ready:
+		return
+	var possible := _available_names_for_letter(LETTERS[letter_index])
+	if possible.is_empty():
+		return
+	hints_remaining -= 1
+	_update_hint_button()
+	hint_button.disabled = true
+	var candidate := possible.pick_random()
+	var request := HTTPRequest.new()
+	add_child(request)
+	request.request_completed.connect(_on_hint_species_loaded.bind(request, candidate))
+	request.request("https://pokeapi.co/api/v2/pokemon-species/%s" % candidate)
+
+
+func _on_hint_species_loaded(
+	_result: int,
+	response_code: int,
+	_headers: PackedStringArray,
+	body: PackedByteArray,
+	request: HTTPRequest,
+	candidate: String
+) -> void:
+	request.queue_free()
+	if response_code != 200:
+		hints_remaining = mini(3, hints_remaining + 1)
+		_update_hint_button()
+		_show_info_popup("Hint unavailable")
+		return
+	var data = JSON.parse_string(body.get_string_from_utf8())
+	if typeof(data) != TYPE_DICTIONARY:
+		hints_remaining = mini(3, hints_remaining + 1)
+		_update_hint_button()
+		return
+	if STARTER_NAMES.has(candidate):
+		_show_hint("A possible answer is a starter.")
+		return
+	var chain_url := String(data.get("evolution_chain", {}).get("url", ""))
+	if chain_url.is_empty():
+		_finish_species_hint(data)
+		return
+	var chain_request := HTTPRequest.new()
+	add_child(chain_request)
+	chain_request.request_completed.connect(_on_hint_chain_loaded.bind(chain_request, data))
+	chain_request.request(chain_url)
+
+
+func _on_hint_chain_loaded(
+	_result: int,
+	response_code: int,
+	_headers: PackedStringArray,
+	body: PackedByteArray,
+	request: HTTPRequest,
+	species_data: Dictionary
+) -> void:
+	request.queue_free()
+	if response_code == 200:
+		var chain_data = JSON.parse_string(body.get_string_from_utf8())
+		if typeof(chain_data) == TYPE_DICTIONARY:
+			var root_name := String(chain_data.get("chain", {}).get("species", {}).get("name", ""))
+			if STARTER_NAMES.has(root_name):
+				_show_hint("A possible answer evolves from a starter.")
+				return
+	_finish_species_hint(species_data)
+
+
+func _finish_species_hint(data: Dictionary) -> void:
+	if bool(data.get("is_legendary", false)):
+		_show_hint("A possible answer is legendary.")
+	elif bool(data.get("is_mythical", false)):
+		_show_hint("A possible answer is mythical.")
+	else:
+		var generation := String(data.get("generation", {}).get("name", "unknown")).trim_prefix("generation-").to_upper()
+		_show_hint("A possible answer debuted in Generation %s." % generation)
+
+
+func _show_hint(message: String) -> void:
+	status_label.text = message
+	status_label.visible = true
+	status_label.add_theme_color_override("font_color", Color("#ffdc52"))
+	_update_hint_button()
+	entry.grab_focus()
+	entry.edit()
+
+
 func _ask_give_up() -> void:
 	DisplayServer.virtual_keyboard_hide()
 	give_up_confirmation.popup_centered(Vector2i(310, 150))
@@ -973,6 +1129,7 @@ func _end_run(reason: String) -> void:
 	DisplayServer.virtual_keyboard_hide()
 	entry.visible = false
 	stumped_button.visible = false
+	hint_button.visible = false
 	answers_scroll.visible = true
 	suggestions_scroll.visible = true
 	results_buttons.visible = true
@@ -999,6 +1156,7 @@ func _reset_run() -> void:
 	rounds_completed = 0
 	run_over = false
 	run_saved = false
+	hints_remaining = 3
 	current_run_names.clear()
 	current_run_shinies.clear()
 	current_round_entries.clear()
@@ -1016,6 +1174,8 @@ func _reset_run() -> void:
 	completed_rounds_scroll.visible = false
 	entry.visible = true
 	stumped_button.visible = true
+	hint_button.visible = true
+	_update_hint_button()
 	answers_scroll.visible = true
 	suggestions_scroll.visible = false
 	results_buttons.visible = false
