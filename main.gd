@@ -1209,15 +1209,15 @@ func _use_hint() -> void:
 	_save_active_run()
 
 	if EEVEELUTIONS.has(candidate):
-		_show_hint("It's an Eeveelution.")
+		_show_hint("Think of Eeveelutions.")
 	elif STARTER_NAMES.has(candidate):
-		_show_hint("It's a starter.")
+		_show_hint("Think of first partner Pokémon.")
 	elif STARTER_DESCENDANTS.has(candidate):
-		_show_hint("It evolves from a starter.")
+		_show_hint("Think of Pokémon that evolve from a first partner.")
 	elif LEGENDARY_NAMES.has(candidate):
-		_show_hint("It's legendary.")
+		_show_hint("Think of Legendary Pokémon.")
 	elif MYTHICAL_NAMES.has(candidate):
-		_show_hint("It's mythical.")
+		_show_hint("Think of Mythical Pokémon.")
 	else:
 		hint_button.disabled = true
 		var request := HTTPRequest.new()
@@ -1255,7 +1255,7 @@ func _on_hint_species_loaded(
 		_save_active_run()
 		return
 	var generation := String(data.get("generation", {}).get("name", "unknown")).trim_prefix("generation-").to_upper()
-	_show_hint("Introduced in Generation %s." % generation)
+	_show_hint("Think of Pokémon introduced in Generation %s." % generation)
 
 
 func _show_hint(message: String) -> void:
