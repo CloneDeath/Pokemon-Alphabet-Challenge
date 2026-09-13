@@ -31,22 +31,22 @@ func _build_ui() -> void:
 	add_child(background)
 
 	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 48)
-	margin.add_theme_constant_override("margin_right", 48)
-	margin.add_theme_constant_override("margin_top", 36)
-	margin.add_theme_constant_override("margin_bottom", 36)
+	margin.add_theme_constant_override("margin_left", 24)
+	margin.add_theme_constant_override("margin_right", 24)
+	margin.add_theme_constant_override("margin_top", 28)
+	margin.add_theme_constant_override("margin_bottom", 28)
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(margin)
 
 	var layout := VBoxContainer.new()
 	layout.alignment = BoxContainer.ALIGNMENT_CENTER
-	layout.add_theme_constant_override("separation", 18)
+	layout.add_theme_constant_override("separation", 16)
 	margin.add_child(layout)
 
 	var title := Label.new()
 	title.text = "POKÉMON ALPHABET CHALLENGE"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 28)
+	title.add_theme_font_size_override("font_size", 21)
 	title.add_theme_color_override("font_color", Color("#ffcb05"))
 	layout.add_child(title)
 
@@ -57,7 +57,7 @@ func _build_ui() -> void:
 
 	letter_label = Label.new()
 	letter_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	letter_label.add_theme_font_size_override("font_size", 112)
+	letter_label.add_theme_font_size_override("font_size", 104)
 	letter_label.add_theme_color_override("font_color", Color("#62a8e5"))
 	layout.add_child(letter_label)
 
@@ -138,24 +138,72 @@ func _submit_answer(raw_answer: String) -> void:
 		_show_error("That name must begin with %s." % expected)
 		return
 
-	if validation_ready and not pokemon_names.has(_normalize_name(answer)):
-		_show_error("That Pokémon isn't in the Pokédex.")
-		return
+	var accepted_answer := answer
+	if validation_ready:
+		var matched_name := _find_pokemon_match(answer, expected)
+		if matched_name.is_empty():
+			_show_error("That Pokémon isn't in the Pokédex.")
+			return
+		accepted_answer = _pretty_name(matched_name)
 
-	if _answer_was_used(answer):
+	if _answer_was_used(accepted_answer):
 		_show_error("You already used that Pokémon.")
 		return
 
-	answers.append(answer)
+	answers.append(accepted_answer)
 	letter_index += 1
 	entry.clear()
-	status_label.text = "Nice!"
+	if _normalize_name(answer) == _normalize_name(accepted_answer):
+		status_label.text = "Nice!"
+	else:
+		status_label.text = "Accepted as %s!" % accepted_answer
 	_update_screen()
 	entry.grab_focus()
 
 
 func _normalize_name(value: String) -> String:
 	return value.to_lower().replace("♀", "-f").replace("♂", "-m").replace(" ", "-").replace(".", "").replace("'", "")
+
+
+func _find_pokemon_match(answer: String, expected_letter: String) -> String:
+	var normalized := _normalize_name(answer)
+	if pokemon_names.has(normalized):
+		return normalized
+
+	var best_match := ""
+	var best_distance := 999
+	for candidate: String in pokemon_names:
+		if candidate.left(1).to_upper() != expected_letter:
+			continue
+		var distance := _edit_distance(normalized, candidate)
+		if distance < best_distance:
+			best_distance = distance
+			best_match = candidate
+
+	var allowed_distance := 1 if normalized.length() <= 6 else 2
+	return best_match if best_distance <= allowed_distance else ""
+
+
+func _edit_distance(left: String, right: String) -> int:
+	var previous: Array[int] = []
+	for column in range(right.length() + 1):
+		previous.append(column)
+
+	for row in range(1, left.length() + 1):
+		var current: Array[int] = [row]
+		for column in range(1, right.length() + 1):
+			var cost := 0 if left[row - 1] == right[column - 1] else 1
+			current.append(min(
+				current[column - 1] + 1,
+				previous[column] + 1,
+				previous[column - 1] + cost
+			))
+		previous = current
+	return previous[right.length()]
+
+
+func _pretty_name(api_name: String) -> String:
+	return api_name.replace("-", " ").capitalize()
 
 
 func _answer_was_used(answer: String) -> bool:
