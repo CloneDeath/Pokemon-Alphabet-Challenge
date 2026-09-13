@@ -27,15 +27,20 @@ var status_label: Label
 var progress_label: Label
 var answers_scroll: ScrollContainer
 var answers_grid: GridContainer
+var grid_name_label: Label
 var suggestions_scroll: ScrollContainer
 var suggestions_label: Label
 var stumped_button: Button
+var results_buttons: HBoxContainer
+var try_again_button: Button
 var restart_button: Button
+var give_up_confirmation: ConfirmationDialog
 var game_margin: MarginContainer
 var menu_overlay: Control
 var pokedex_overlay: Control
 var pokedex_button: Button
 var pokedex_list: VBoxContainer
+var pokedex_grids: Array[GridContainer] = []
 
 
 func _ready() -> void:
@@ -109,6 +114,14 @@ func _build_ui() -> void:
 	recent_list.add_theme_constant_override("separation", 1)
 	current_row.add_child(recent_list)
 
+	grid_name_label = Label.new()
+	grid_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	grid_name_label.add_theme_font_size_override("font_size", 13)
+	grid_name_label.add_theme_color_override("font_color", Color("#aebbd4"))
+	grid_name_label.custom_minimum_size = Vector2(0, 18)
+	grid_name_label.visible = false
+	layout.add_child(grid_name_label)
+
 	answers_scroll = ScrollContainer.new()
 	answers_scroll.custom_minimum_size = Vector2(0, 86)
 	answers_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -152,7 +165,7 @@ func _build_ui() -> void:
 	give_up_style.content_margin_top = 5
 	give_up_style.content_margin_bottom = 5
 	stumped_button.add_theme_stylebox_override("normal", give_up_style)
-	stumped_button.pressed.connect(_stumped)
+	stumped_button.pressed.connect(_ask_give_up)
 	layout.add_child(stumped_button)
 
 	status_label = Label.new()
@@ -165,7 +178,8 @@ func _build_ui() -> void:
 
 	suggestions_scroll = ScrollContainer.new()
 	suggestions_scroll.visible = false
-	suggestions_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	suggestions_scroll.custom_minimum_size = Vector2(0, 74)
+	suggestions_scroll.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	suggestions_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	layout.add_child(suggestions_scroll)
 
@@ -180,11 +194,47 @@ func _build_ui() -> void:
 	layout.move_child(stumped_button, 3)
 	layout.move_child(status_label, 4)
 
+	results_buttons = HBoxContainer.new()
+	results_buttons.visible = false
+	results_buttons.add_theme_constant_override("separation", 7)
+	layout.add_child(results_buttons)
+
+	try_again_button = Button.new()
+	try_again_button.text = "Try Again"
+	try_again_button.custom_minimum_size = Vector2(0, 48)
+	try_again_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	try_again_button.pressed.connect(_start_challenge)
+	results_buttons.add_child(try_again_button)
+
+	var results_pokedex_button := Button.new()
+	results_pokedex_button.text = "Pokédex"
+	results_pokedex_button.custom_minimum_size = Vector2(0, 48)
+	results_pokedex_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	results_pokedex_button.pressed.connect(_show_pokedex)
+	results_buttons.add_child(results_pokedex_button)
+
 	restart_button = Button.new()
-	restart_button.text = "Main Menu"
-	restart_button.visible = false
+	restart_button.text = "Return to Menu"
+	restart_button.custom_minimum_size = Vector2(0, 48)
+	restart_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	restart_button.add_theme_color_override("font_color", Color("#09142d"))
+	var menu_style := StyleBoxFlat.new()
+	menu_style.bg_color = Color("#ffcb05")
+	menu_style.corner_radius_top_left = 8
+	menu_style.corner_radius_top_right = 8
+	menu_style.corner_radius_bottom_left = 8
+	menu_style.corner_radius_bottom_right = 8
+	restart_button.add_theme_stylebox_override("normal", menu_style)
 	restart_button.pressed.connect(_show_main_menu)
-	layout.add_child(restart_button)
+	results_buttons.add_child(restart_button)
+
+	give_up_confirmation = ConfirmationDialog.new()
+	give_up_confirmation.title = "Give up?"
+	give_up_confirmation.dialog_text = "Are you sure you want to end this run?"
+	give_up_confirmation.ok_button_text = "Give Up"
+	give_up_confirmation.cancel_button_text = "Keep Playing"
+	give_up_confirmation.confirmed.connect(_confirm_stumped)
+	add_child(give_up_confirmation)
 
 	_build_main_menu()
 	_build_pokedex_screen()
@@ -302,39 +352,60 @@ func _show_pokedex() -> void:
 func _populate_pokedex() -> void:
 	for child in pokedex_list.get_children():
 		child.queue_free()
+	pokedex_grids.clear()
 
-	var names: Array[String] = []
-	for api_name: String in pokedex_data:
-		names.append(api_name)
-	names.sort()
+	for letter in LETTERS:
+		var total := 0
+		var guessed_names: Array[String] = []
+		for api_name: String in pokemon_names:
+			if api_name.left(1).to_upper() == letter:
+				total += 1
+				if pokedex_data.has(api_name):
+					guessed_names.append(api_name)
+		guessed_names.sort()
 
-	for api_name in names:
-		var record: Dictionary = pokedex_data[api_name]
-		var row := HBoxContainer.new()
-		row.custom_minimum_size = Vector2(0, 58)
-		pokedex_list.add_child(row)
+		var header := Label.new()
+		header.text = "%s  (%d/%d)" % [letter, guessed_names.size(), total]
+		header.add_theme_font_size_override("font_size", 20)
+		header.add_theme_color_override("font_color", Color("#ffcb05"))
+		header.add_theme_constant_override("outline_size", 3)
+		header.add_theme_color_override("font_outline_color", Color("#193b70"))
+		pokedex_list.add_child(header)
 
-		var sprite := TextureRect.new()
-		sprite.custom_minimum_size = Vector2(54, 54)
-		sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		row.add_child(sprite)
+		var grid := GridContainer.new()
+		grid.columns = clampi(int((get_viewport_rect().size.x - 36.0) / 104.0), 2, 5)
+		grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		grid.add_theme_constant_override("h_separation", 6)
+		grid.add_theme_constant_override("v_separation", 8)
+		pokedex_list.add_child(grid)
+		pokedex_grids.append(grid)
 
-		var details := Label.new()
-		details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		details.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		details.text = "#%04d  %s\nGuessed %d time%s" % [
-			int(record.get("id", 0)),
-			_pretty_name(api_name),
-			int(record.get("count", 0)),
-			"" if int(record.get("count", 0)) == 1 else "s"
-		]
-		row.add_child(details)
+		for api_name in guessed_names:
+			var record: Dictionary = pokedex_data[api_name]
+			var card := VBoxContainer.new()
+			card.custom_minimum_size = Vector2(90, 92)
+			card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			card.alignment = BoxContainer.ALIGNMENT_CENTER
+			grid.add_child(card)
 
-		var pokemon_id := int(record.get("id", 0))
-		if pokemon_id > 0:
-			_load_sprite_by_id(pokemon_id, sprite)
+			var sprite := TextureRect.new()
+			sprite.custom_minimum_size = Vector2(62, 62)
+			sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			card.add_child(sprite)
+
+			var details := Label.new()
+			details.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			details.add_theme_font_size_override("font_size", 12)
+			var count := int(record.get("count", 0))
+			details.text = "%s\n×%d" % [_pretty_name(api_name), count]
+			card.add_child(details)
+
+			var pokemon_id := int(record.get("id", 0))
+			if pokemon_id > 0:
+				_load_sprite_by_id(pokemon_id, sprite)
 
 
 func _load_sprite_by_id(pokemon_id: int, target: TextureRect) -> void:
@@ -374,6 +445,9 @@ func _update_grid_columns() -> void:
 		return
 	var available_width := get_viewport_rect().size.x - 32.0
 	answers_grid.columns = clampi(int(available_width / 38.0), 6, 12)
+	for grid in pokedex_grids:
+		if is_instance_valid(grid):
+			grid.columns = clampi(int(available_width / 104.0), 2, 5)
 
 
 func _on_entry_gui_input(event: InputEvent) -> void:
@@ -528,6 +602,9 @@ func _add_answer_card(display_name: String, api_name: String) -> void:
 	card.custom_minimum_size = Vector2(32, 32)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card.alignment = BoxContainer.ALIGNMENT_CENTER
+	card.mouse_filter = Control.MOUSE_FILTER_STOP
+	card.tooltip_text = display_name
+	card.gui_input.connect(_on_answer_card_input.bind(display_name))
 	answers_grid.add_child(card)
 
 	var compact_sprite := TextureRect.new()
@@ -564,6 +641,12 @@ func _add_answer_card(display_name: String, api_name: String) -> void:
 	var shiny := randi_range(1, 4096) == 1
 	_load_sprite(api_name, compact_sprite, true, shiny)
 	_load_sprite(api_name, recent_sprite, false, shiny)
+
+
+func _on_answer_card_input(event: InputEvent, display_name: String) -> void:
+	if (event is InputEventScreenTouch and event.pressed) or (event is InputEventMouseButton and event.pressed):
+		grid_name_label.text = display_name
+		grid_name_label.visible = true
 
 
 func _update_recent_opacity() -> void:
@@ -715,8 +798,17 @@ func _show_error(message: String) -> void:
 	entry.edit()
 
 
-func _stumped() -> void:
+func _ask_give_up() -> void:
+	DisplayServer.virtual_keyboard_hide()
+	give_up_confirmation.popup_centered(Vector2i(310, 150))
+
+
+func _confirm_stumped() -> void:
 	_end_run("Gave up!")
+
+
+func _alphabet_count_text(count: int) -> String:
+	return "%d alphabet" % count if count == 1 else "%d alphabets" % count
 
 
 func _end_run(reason: String) -> void:
@@ -725,17 +817,17 @@ func _end_run(reason: String) -> void:
 	DisplayServer.virtual_keyboard_hide()
 	entry.visible = false
 	stumped_button.visible = false
-	answers_scroll.visible = false
+	answers_scroll.visible = true
 	suggestions_scroll.visible = true
-	restart_button.visible = true
+	results_buttons.visible = true
 
 	var possible := _available_names_for_letter(LETTERS[letter_index])
 	var pretty: Array[String] = []
-	for name in possible:
-		pretty.append(_pretty_name(name))
+	for index in range(mini(3, possible.size())):
+		pretty.append(_pretty_name(possible[index]))
 	var answer_text := ", ".join(pretty) if not pretty.is_empty() else "No unused answers remained."
-	suggestions_label.text = "Possible %s answers:\n\n%s" % [LETTERS[letter_index], answer_text]
-	status_label.text = "%s  %d alphabet(s), %d Pokémon." % [reason, rounds_completed, answers.size()]
+	suggestions_label.text = "Possible %s answers:\n%s" % [LETTERS[letter_index], answer_text]
+	status_label.text = "%s  %s, %d Pokémon." % [reason, _alphabet_count_text(rounds_completed), answers.size()]
 	status_label.visible = true
 	_update_screen()
 
@@ -764,7 +856,8 @@ func _reset_run() -> void:
 	stumped_button.visible = true
 	answers_scroll.visible = true
 	suggestions_scroll.visible = false
-	restart_button.visible = false
+	results_buttons.visible = false
+	grid_name_label.visible = false
 	status_label.text = ""
 	status_label.visible = false
 	_skip_unavailable_letters()
