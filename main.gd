@@ -2,6 +2,7 @@ extends Control
 
 const LETTERS := "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 const POKEAPI_URL := "https://pokeapi.co/api/v2/pokemon?limit=2000"
+const SPRITE_URL := "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/%d.png"
 const BUILD_INFO = preload("res://build_info.gd")
 
 var letter_index := 0
@@ -13,7 +14,8 @@ var letter_label: Label
 var entry: LineEdit
 var status_label: Label
 var progress_label: Label
-var answers_label: Label
+var answers_scroll: ScrollContainer
+var answers_row: HBoxContainer
 var submit_button: Button
 var restart_button: Button
 
@@ -22,7 +24,6 @@ func _ready() -> void:
 	_build_ui()
 	_update_screen()
 	_load_pokemon_names()
-	entry.grab_focus()
 
 
 func _build_ui() -> void:
@@ -31,71 +32,85 @@ func _build_ui() -> void:
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(background)
 
-	var version_label := Label.new()
-	version_label.text = BUILD_INFO.LABEL
-	version_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	version_label.add_theme_font_size_override("font_size", 13)
-	version_label.add_theme_color_override("font_color", Color("#8290ad"))
-	version_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	version_label.position = Vector2(-150, 12)
-	version_label.size = Vector2(134, 24)
-	add_child(version_label)
+	var build_label := Label.new()
+	build_label.text = BUILD_INFO.LABEL
+	build_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	build_label.add_theme_font_size_override("font_size", 12)
+	build_label.add_theme_color_override("font_color", Color("#8290ad"))
+	build_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	build_label.position = Vector2(-150, 8)
+	build_label.size = Vector2(138, 22)
+	add_child(build_label)
 
 	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 24)
-	margin.add_theme_constant_override("margin_right", 24)
+	margin.add_theme_constant_override("margin_left", 16)
+	margin.add_theme_constant_override("margin_right", 16)
 	margin.add_theme_constant_override("margin_top", 28)
-	margin.add_theme_constant_override("margin_bottom", 28)
+	margin.add_theme_constant_override("margin_bottom", 12)
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(margin)
 
 	var layout := VBoxContainer.new()
 	layout.alignment = BoxContainer.ALIGNMENT_CENTER
-	layout.add_theme_constant_override("separation", 16)
+	layout.add_theme_constant_override("separation", 8)
 	margin.add_child(layout)
 
 	var title := Label.new()
 	title.text = "POKÉMON ALPHABET CHALLENGE"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 21)
+	title.add_theme_font_size_override("font_size", 20)
 	title.add_theme_color_override("font_color", Color("#ffcb05"))
 	layout.add_child(title)
 
 	progress_label = Label.new()
 	progress_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	progress_label.add_theme_font_size_override("font_size", 18)
+	progress_label.add_theme_font_size_override("font_size", 16)
 	layout.add_child(progress_label)
 
 	letter_label = Label.new()
 	letter_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	letter_label.add_theme_font_size_override("font_size", 104)
+	letter_label.add_theme_font_size_override("font_size", 82)
 	letter_label.add_theme_color_override("font_color", Color("#62a8e5"))
 	layout.add_child(letter_label)
+
+	answers_scroll = ScrollContainer.new()
+	answers_scroll.custom_minimum_size = Vector2(0, 112)
+	answers_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	answers_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	answers_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	layout.add_child(answers_scroll)
+
+	answers_row = HBoxContainer.new()
+	answers_row.add_theme_constant_override("separation", 10)
+	answers_scroll.add_child(answers_row)
+
+	var input_row := HBoxContainer.new()
+	input_row.add_theme_constant_override("separation", 8)
+	layout.add_child(input_row)
 
 	entry = LineEdit.new()
 	entry.placeholder_text = "Name a Pokémon..."
 	entry.custom_minimum_size = Vector2(0, 52)
-	entry.add_theme_font_size_override("font_size", 22)
+	entry.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	entry.add_theme_font_size_override("font_size", 21)
+	entry.keep_editing_on_text_submit = true
 	entry.text_submitted.connect(_submit_answer)
 	entry.gui_input.connect(_on_entry_gui_input)
-	layout.add_child(entry)
+	input_row.add_child(entry)
 
 	submit_button = Button.new()
 	submit_button.text = "Submit"
-	submit_button.custom_minimum_size = Vector2(0, 46)
+	submit_button.custom_minimum_size = Vector2(82, 52)
+	submit_button.focus_mode = Control.FOCUS_NONE
 	submit_button.pressed.connect(func(): _submit_answer(entry.text))
-	layout.add_child(submit_button)
+	input_row.add_child(submit_button)
 
 	status_label = Label.new()
 	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	status_label.add_theme_font_size_override("font_size", 17)
+	status_label.add_theme_font_size_override("font_size", 15)
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	status_label.custom_minimum_size = Vector2(0, 24)
 	layout.add_child(status_label)
-
-	answers_label = Label.new()
-	answers_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	answers_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	layout.add_child(answers_label)
 
 	restart_button = Button.new()
 	restart_button.text = "Play Again"
@@ -106,15 +121,19 @@ func _build_ui() -> void:
 
 func _on_entry_gui_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch and event.pressed:
-		entry.grab_focus()
-		entry.edit()
-		DisplayServer.virtual_keyboard_show(
-			entry.text,
-			entry.get_global_rect(),
-			DisplayServer.KEYBOARD_TYPE_DEFAULT,
-			-1,
-			entry.caret_column
-		)
+		_open_keyboard()
+
+
+func _open_keyboard() -> void:
+	entry.grab_focus()
+	entry.edit()
+	DisplayServer.virtual_keyboard_show(
+		entry.text,
+		entry.get_global_rect(),
+		DisplayServer.KEYBOARD_TYPE_DEFAULT,
+		-1,
+		entry.caret_column
+	)
 
 
 func _load_pokemon_names() -> void:
@@ -144,7 +163,9 @@ func _on_pokemon_list_loaded(
 		return
 
 	for item in data.results:
-		pokemon_names[String(item.name).to_lower()] = true
+		var name := String(item.name).to_lower()
+		var url := String(item.url).trim_suffix("/")
+		pokemon_names[name] = int(url.get_file())
 	validation_ready = true
 	status_label.text = "Pokémon list loaded. Good luck!"
 
@@ -164,18 +185,20 @@ func _submit_answer(raw_answer: String) -> void:
 		return
 
 	var accepted_answer := answer
+	var api_name := _normalize_name(answer)
 	if validation_ready:
-		var matched_name := _find_pokemon_match(answer, expected)
-		if matched_name.is_empty():
+		api_name = _find_pokemon_match(answer, expected)
+		if api_name.is_empty():
 			_show_error("That Pokémon isn't in the Pokédex.")
 			return
-		accepted_answer = _pretty_name(matched_name)
+		accepted_answer = _pretty_name(api_name)
 
 	if _answer_was_used(accepted_answer):
 		_show_error("You already used that Pokémon.")
 		return
 
 	answers.append(accepted_answer)
+	_add_answer_card(accepted_answer, api_name)
 	letter_index += 1
 	entry.clear()
 	if _normalize_name(answer) == _normalize_name(accepted_answer):
@@ -184,6 +207,57 @@ func _submit_answer(raw_answer: String) -> void:
 		status_label.text = "Accepted as %s!" % accepted_answer
 	_update_screen()
 	entry.grab_focus()
+	entry.edit()
+	call_deferred("_scroll_to_latest")
+
+
+func _add_answer_card(display_name: String, api_name: String) -> void:
+	var card := VBoxContainer.new()
+	card.custom_minimum_size = Vector2(84, 104)
+	card.alignment = BoxContainer.ALIGNMENT_CENTER
+	answers_row.add_child(card)
+
+	var sprite := TextureRect.new()
+	sprite.custom_minimum_size = Vector2(80, 80)
+	sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	card.add_child(sprite)
+
+	var name_label := Label.new()
+	name_label.text = display_name
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	name_label.tooltip_text = display_name
+	card.add_child(name_label)
+
+	if not pokemon_names.has(api_name):
+		return
+	var request := HTTPRequest.new()
+	add_child(request)
+	request.request_completed.connect(_on_sprite_loaded.bind(request, sprite))
+	request.request(SPRITE_URL % int(pokemon_names[api_name]))
+
+
+func _on_sprite_loaded(
+	_result: int,
+	response_code: int,
+	_headers: PackedStringArray,
+	body: PackedByteArray,
+	request: HTTPRequest,
+	target: TextureRect
+) -> void:
+	request.queue_free()
+	if response_code != 200 or not is_instance_valid(target):
+		return
+	var image := Image.new()
+	if image.load_png_from_buffer(body) == OK:
+		target.texture = ImageTexture.create_from_image(image)
+
+
+func _scroll_to_latest() -> void:
+	await get_tree().process_frame
+	answers_scroll.scroll_horizontal = int(answers_scroll.get_h_scroll_bar().max_value)
 
 
 func _normalize_name(value: String) -> String:
@@ -246,7 +320,6 @@ func _show_error(message: String) -> void:
 func _update_screen() -> void:
 	status_label.remove_theme_color_override("font_color")
 	progress_label.text = "%d / 26" % letter_index
-	answers_label.text = "  •  ".join(answers)
 
 	if letter_index >= LETTERS.length():
 		letter_label.text = "✓"
@@ -262,9 +335,11 @@ func _update_screen() -> void:
 func _restart() -> void:
 	letter_index = 0
 	answers.clear()
+	for child in answers_row.get_children():
+		child.queue_free()
 	entry.visible = true
 	submit_button.visible = true
 	restart_button.visible = false
 	status_label.text = ""
 	_update_screen()
-	entry.grab_focus()
+	_open_keyboard()
