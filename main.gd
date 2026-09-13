@@ -79,7 +79,7 @@ var answers_scroll: ScrollContainer
 var answers_grid: GridContainer
 var grid_name_label: Label
 var completed_rounds_scroll: ScrollContainer
-var completed_rounds_grid: HFlowContainer
+var completed_rounds_grid: VBoxContainer
 var suggestions_scroll: ScrollContainer
 var suggestions_label: Label
 var suggestions_grid: HBoxContainer
@@ -139,7 +139,7 @@ func _build_ui() -> void:
 	add_child(margin)
 
 	var layout := VBoxContainer.new()
-	layout.alignment = BoxContainer.ALIGNMENT_CENTER
+	layout.alignment = BoxContainer.ALIGNMENT_BEGIN
 	layout.add_theme_constant_override("separation", 7)
 	margin.add_child(layout)
 
@@ -193,21 +193,20 @@ func _build_ui() -> void:
 	completed_rounds_scroll = ScrollContainer.new()
 	completed_rounds_scroll.visible = false
 	completed_rounds_scroll.custom_minimum_size = Vector2(0, 78)
-	completed_rounds_scroll.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	completed_rounds_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	completed_rounds_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	completed_rounds_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	layout.add_child(completed_rounds_scroll)
 
-	completed_rounds_grid = HFlowContainer.new()
+	completed_rounds_grid = VBoxContainer.new()
 	completed_rounds_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	completed_rounds_grid.alignment = FlowContainer.ALIGNMENT_BEGIN
-	completed_rounds_grid.add_theme_constant_override("h_separation", 6)
-	completed_rounds_grid.add_theme_constant_override("v_separation", 6)
+	completed_rounds_grid.alignment = BoxContainer.ALIGNMENT_BEGIN
+	completed_rounds_grid.add_theme_constant_override("separation", 6)
 	completed_rounds_scroll.add_child(completed_rounds_grid)
 
 	answers_scroll = ScrollContainer.new()
 	answers_scroll.custom_minimum_size = Vector2(0, 86)
-	answers_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	answers_scroll.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	answers_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	answers_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	layout.add_child(answers_scroll)
@@ -512,8 +511,7 @@ func _resume_challenge() -> void:
 	menu_overlay.visible = false
 	pokedex_overlay.visible = false
 	game_margin.visible = true
-	for snapshot in completed_round_entries:
-		_add_completed_round_square(snapshot, completed_rounds_grid.get_child_count() + 1)
+	_rebuild_completed_round_squares()
 	if not completed_round_entries.is_empty():
 		completed_rounds_scroll.visible = true
 	for item in current_round_entries:
@@ -920,20 +918,36 @@ func _complete_round_display() -> void:
 	var snapshot: Array = current_round_entries.duplicate(true)
 	completed_round_entries.append(snapshot)
 	current_round_entries.clear()
-	_add_completed_round_square(snapshot, rounds_completed)
+	_rebuild_completed_round_squares()
 	for child in answers_grid.get_children():
 		child.queue_free()
 
 
-func _add_completed_round_square(snapshot: Array, round_number: int) -> void:
-	completed_rounds_scroll.visible = true
+func _rebuild_completed_round_squares() -> void:
+	for child in completed_rounds_grid.get_children():
+		completed_rounds_grid.remove_child(child)
+		child.queue_free()
+	completed_rounds_scroll.visible = not completed_round_entries.is_empty()
+
+	var row: HBoxContainer
+	for display_index in range(completed_round_entries.size()):
+		if display_index % 5 == 0:
+			row = HBoxContainer.new()
+			row.alignment = BoxContainer.ALIGNMENT_CENTER
+			row.add_theme_constant_override("separation", 6)
+			completed_rounds_grid.add_child(row)
+		var source_index := completed_round_entries.size() - 1 - display_index
+		var snapshot: Array = completed_round_entries[source_index]
+		row.add_child(_create_completed_round_square(snapshot, source_index + 1))
+	call_deferred("_scroll_completed_rounds_to_end")
+
+
+func _create_completed_round_square(snapshot: Array, round_number: int) -> PanelContainer:
 	var square := PanelContainer.new()
 	square.custom_minimum_size = Vector2(58, 0)
 	square.tooltip_text = "Alphabet %d — %d Pokémon" % [round_number, snapshot.size()]
 	square.mouse_filter = Control.MOUSE_FILTER_STOP
 	square.gui_input.connect(_on_round_square_input.bind(snapshot, round_number))
-	completed_rounds_grid.add_child(square)
-	completed_rounds_grid.move_child(square, 0)
 
 	var preview_rows := VBoxContainer.new()
 	preview_rows.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -950,14 +964,14 @@ func _add_completed_round_square(snapshot: Array, round_number: int) -> void:
 			preview_rows.add_child(preview_row)
 		var item: Dictionary = snapshot[index]
 		var sprite := TextureRect.new()
-		sprite.custom_minimum_size = Vector2(12, 12)
+		sprite.custom_minimum_size = Vector2(10, 10)
 		sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		sprite.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		preview_row.add_child(sprite)
 		_load_sprite(String(item.name), sprite, false, bool(item.shiny))
-	call_deferred("_scroll_completed_rounds_to_end")
+	return square
 
 
 func _scroll_completed_rounds_to_end() -> void:
