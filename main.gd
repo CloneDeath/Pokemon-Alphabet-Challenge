@@ -103,6 +103,7 @@ var results_buttons: HBoxContainer
 var try_again_button: Button
 var restart_button: Button
 var give_up_confirmation: ConfirmationDialog
+var delete_save_confirmation: ConfirmationDialog
 var game_margin: MarginContainer
 var menu_overlay: Control
 var pokedex_overlay: Control
@@ -477,7 +478,7 @@ func _build_main_menu() -> void:
 	run_buttons.add_child(resume_button)
 
 	var start_button := Button.new()
-	start_button.text = "Time Trial"
+	start_button.text = "Time Trial" if infinite_mode_unlocked else "Begin"
 	start_button.custom_minimum_size = Vector2(0, 54)
 	start_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	start_button.add_theme_font_size_override("font_size", 17)
@@ -497,6 +498,25 @@ func _build_main_menu() -> void:
 	pokedex_button.custom_minimum_size = Vector2(0, 48)
 	pokedex_button.pressed.connect(_show_pokedex)
 	menu.add_child(pokedex_button)
+
+	var delete_save_button := Button.new()
+	delete_save_button.text = "Delete Save"
+	delete_save_button.focus_mode = Control.FOCUS_NONE
+	delete_save_button.add_theme_font_size_override("font_size", 11)
+	delete_save_button.add_theme_color_override("font_color", Color("#8290ad"))
+	delete_save_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	delete_save_button.position = Vector2(-102, -42)
+	delete_save_button.size = Vector2(92, 30)
+	delete_save_button.pressed.connect(_ask_delete_save)
+	menu_overlay.add_child(delete_save_button)
+
+	delete_save_confirmation = ConfirmationDialog.new()
+	delete_save_confirmation.title = "Delete save?"
+	delete_save_confirmation.dialog_text = "This permanently clears your Pokédex, scores, unlocks, and saved run."
+	delete_save_confirmation.ok_button_text = "Delete Everything"
+	delete_save_confirmation.cancel_button_text = "Cancel"
+	delete_save_confirmation.confirmed.connect(_confirm_delete_save)
+	add_child(delete_save_confirmation)
 
 	var save_buttons := HBoxContainer.new()
 	save_buttons.add_theme_constant_override("separation", 8)
@@ -523,6 +543,17 @@ func _build_main_menu() -> void:
 	restore_dialog.filters = PackedStringArray(["*.json ; Pokémon Alphabet Save"])
 	restore_dialog.file_selected.connect(_restore_save)
 	add_child(restore_dialog)
+
+
+func _ask_delete_save() -> void:
+	delete_save_confirmation.popup_centered(Vector2i(330, 170))
+
+
+func _confirm_delete_save() -> void:
+	for path in [SAVE_PATH, STATS_PATH, ACTIVE_RUN_PATH]:
+		if FileAccess.file_exists(path):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	get_tree().reload_current_scene()
 
 
 func _stats_data() -> Dictionary:
