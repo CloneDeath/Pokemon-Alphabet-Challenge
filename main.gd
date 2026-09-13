@@ -90,6 +90,7 @@ var background_time := 0.0
 var background_icons: Array[TextureRect] = []
 var background_positions: Array[Vector2] = []
 var background_phases: Array[float] = []
+var background_repulsion_offsets: Array[Vector2] = []
 
 var recent_rows: Array[HBoxContainer] = []
 var letter_label: Label
@@ -149,7 +150,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	background_time += delta
-	_animate_background_icons()
+	_animate_background_icons(delta)
 	if game_mode == "time_trial" and not run_over and is_instance_valid(game_margin) and game_margin.visible:
 		elapsed_time = Time.get_unix_time_from_system() - time_trial_started_at
 		_update_timer_label()
@@ -226,10 +227,11 @@ func _build_background() -> void:
 		background_icons.append(icon)
 		background_positions.append(spec[1])
 		background_phases.append(float(spec[3]))
-	_animate_background_icons()
+		background_repulsion_offsets.append(Vector2.ZERO)
+	_animate_background_icons(0.0)
 
 
-func _animate_background_icons() -> void:
+func _animate_background_icons(delta: float) -> void:
 	if background_icons.is_empty():
 		return
 	var viewport_size := get_viewport_rect().size
@@ -240,11 +242,26 @@ func _animate_background_icons() -> void:
 		var travel_height := viewport_size.y + icon.size.y * 2.0
 		var drift_speed := 8.0 + float(index % 3) * 2.5
 		var drifting_y := fposmod(base.y - background_time * drift_speed + icon.size.y, travel_height) - icon.size.y
+		background_repulsion_offsets[index] *= pow(0.90, delta)
 		icon.position = Vector2(
 			base.x + sin(background_time * 0.48 + phase) * 14.0,
 			drifting_y
-		)
+		) + background_repulsion_offsets[index]
 		icon.rotation = sin(background_time * 0.28 + phase) * 0.10
+
+	for left_index in range(background_icons.size()):
+		for right_index in range(left_index + 1, background_icons.size()):
+			var left := background_icons[left_index]
+			var right := background_icons[right_index]
+			var difference := left.position + left.size * 0.5 - right.position - right.size * 0.5
+			var distance := difference.length()
+			var minimum_distance := (left.size.x + right.size.x) * 0.42
+			if distance >= minimum_distance:
+				continue
+			var direction := difference.normalized() if distance > 0.01 else Vector2.from_angle(background_phases[left_index])
+			var push := direction * (minimum_distance - distance) * delta * 0.45
+			background_repulsion_offsets[left_index] = (background_repulsion_offsets[left_index] + push).limit_length(42.0)
+			background_repulsion_offsets[right_index] = (background_repulsion_offsets[right_index] - push).limit_length(42.0)
 
 
 func _opaque_button_style(color: Color) -> StyleBoxFlat:
