@@ -103,6 +103,7 @@ var recent_list: VBoxContainer
 var hint_label: Label
 var entry: LineEdit
 var status_label: Label
+var progress_row: HBoxContainer
 var progress_label: Label
 var timer_label: Label
 var medal_icon: TextureRect
@@ -347,7 +348,7 @@ func _build_ui() -> void:
 	title.add_theme_color_override("font_color", Color("#ffcb05"))
 	layout.add_child(title)
 
-	var progress_row := HBoxContainer.new()
+	progress_row = HBoxContainer.new()
 	progress_row.add_theme_constant_override("separation", 8)
 	layout.add_child(progress_row)
 
@@ -711,8 +712,7 @@ func _build_main_menu() -> void:
 	time_trial_row.add_child(start_button)
 
 	time_trial_score_label = _create_menu_score_label()
-	time_trial_medal_icon = _create_menu_medal_icon()
-	time_trial_row.add_child(time_trial_medal_icon)
+	time_trial_medal_icon = _create_menu_medal_icon(time_trial_row)
 	time_trial_row.add_child(time_trial_score_label)
 
 	var time_attack_row := HBoxContainer.new()
@@ -729,8 +729,7 @@ func _build_main_menu() -> void:
 	time_attack_row.add_child(time_attack_button)
 
 	time_attack_score_label = _create_menu_score_label()
-	time_attack_medal_icon = _create_menu_medal_icon()
-	time_attack_row.add_child(time_attack_medal_icon)
+	time_attack_medal_icon = _create_menu_medal_icon(time_attack_row)
 	time_attack_row.add_child(time_attack_score_label)
 
 	var infinite_row := HBoxContainer.new()
@@ -748,8 +747,7 @@ func _build_main_menu() -> void:
 	infinite_row.add_child(time_trial_button)
 
 	infinite_score_label = _create_menu_score_label()
-	infinite_medal_icon = _create_menu_medal_icon()
-	infinite_row.add_child(infinite_medal_icon)
+	infinite_medal_icon = _create_menu_medal_icon(infinite_row)
 	infinite_row.add_child(infinite_score_label)
 
 	var pokedex_row := HBoxContainer.new()
@@ -763,8 +761,7 @@ func _build_main_menu() -> void:
 	pokedex_button.pressed.connect(_show_pokedex)
 	pokedex_row.add_child(pokedex_button)
 
-	pokedex_medal_icon = _create_menu_medal_icon()
-	pokedex_row.add_child(pokedex_medal_icon)
+	pokedex_medal_icon = _create_menu_medal_icon(pokedex_row)
 	pokedex_score_label = _create_menu_score_label()
 	pokedex_row.add_child(pokedex_score_label)
 
@@ -859,12 +856,26 @@ func _create_menu_score_label() -> Label:
 	return label
 
 
-func _create_menu_medal_icon() -> TextureRect:
+func _create_menu_medal_icon(parent: HBoxContainer) -> TextureRect:
+	var display := VBoxContainer.new()
+	display.visible = false
+	display.custom_minimum_size = Vector2(48, 54)
+	display.alignment = BoxContainer.ALIGNMENT_CENTER
+	display.add_theme_constant_override("separation", -2)
+	parent.add_child(display)
+
 	var icon := TextureRect.new()
-	icon.visible = false
-	icon.custom_minimum_size = Vector2(32, 42)
+	icon.custom_minimum_size = Vector2(38, 38)
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	display.add_child(icon)
+
+	var caption := Label.new()
+	caption.name = "MedalName"
+	caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	caption.add_theme_font_size_override("font_size", 9)
+	caption.add_theme_color_override("font_color", Color("#aebbd4"))
+	display.add_child(caption)
 	return icon
 
 
@@ -1030,8 +1041,7 @@ func _refresh_main_menu() -> void:
 	)
 	time_trial_score_label.visible = has_time_trial_best
 	time_trial_score_label.custom_minimum_size.x = 82.0 if has_time_trial_best else 0.0
-	time_trial_medal_icon.custom_minimum_size.x = 32.0 if has_time_trial_best and time_trial_best_completed else 0.0
-	_set_menu_medal(time_trial_medal_icon, _time_trial_medal_name(time_trial_best), has_time_trial_best and time_trial_best_completed)
+ 	_set_menu_medal(time_trial_medal_icon, _time_trial_medal_name(time_trial_best), has_time_trial_best and time_trial_best_completed)
 	time_trial_row.queue_sort()
 	time_attack_score_label.text = "" if not has_time_attack_high_score else "%s\n%d Pokémon" % [
 		_alphabet_count_text(time_attack_best_alphabets), time_attack_high_score
@@ -1050,9 +1060,13 @@ func _refresh_main_menu() -> void:
 
 
 func _set_menu_medal(icon: TextureRect, name: String, has_score: bool) -> void:
-	icon.visible = has_score and name != "No medal"
-	if icon.visible:
+	var display := icon.get_parent() as VBoxContainer
+	display.visible = has_score and name != "No medal"
+	display.custom_minimum_size.x = 48.0 if display.visible else 0.0
+	if display.visible:
 		icon.texture = _medal_texture(name)
+		var caption := display.get_node("MedalName") as Label
+		caption.text = name
 
 
 func _start_challenge() -> void:
@@ -2161,7 +2175,7 @@ func _show_medal(name: String) -> void:
 	medal_icon.texture = _medal_texture(name)
 	medal_icon.visible = true
 	medal_label.visible = true
-	medal_label.text = _format_time(elapsed_time) if game_mode == "time_trial" else "%s\n%d Pokémon" % [_alphabet_count_text(rounds_completed), answers.size()]
+	medal_label.text = "%s\n%s" % [name, _format_time(elapsed_time)] if game_mode == "time_trial" else "%s\n%d Pokémon" % [_alphabet_count_text(rounds_completed), answers.size()]
 	medal_label.add_theme_color_override("font_color", Color("#ffffff"))
 	_animate_earned_medal()
 
@@ -2270,7 +2284,7 @@ func _end_run(reason: String, completed_time_trial: bool = false) -> void:
 				time_trial_best_pokemon = answers.size()
 				has_time_trial_best = true
 				_save_stats()
-			status_label.text = "Finished in %s" % _format_time(elapsed_time)
+			status_label.text = ""
 			suggestions_label.visible = false
 		else:
 			personal_best = not time_trial_best_completed and (not has_time_trial_best or answers.size() > time_trial_best_pokemon)
@@ -2304,7 +2318,8 @@ func _end_run(reason: String, completed_time_trial: bool = false) -> void:
 	_show_next_medal(completed_time_trial)
 	if personal_best:
 		_show_personal_best()
-	status_label.visible = true
+	status_label.visible = not (game_mode == "time_trial" and completed_time_trial)
+	progress_row.visible = not (game_mode == "time_trial" and completed_time_trial)
 	_update_screen()
 
 
@@ -2393,6 +2408,7 @@ func _reset_run() -> void:
 	for child in completed_rounds_grid.get_children():
 		child.queue_free()
 	completed_rounds_scroll.visible = false
+	progress_row.visible = true
 	timer_label.visible = game_mode == "time_trial" or game_mode == "time_attack"
 	medal_icon.visible = false
 	medal_label.visible = false
