@@ -2063,7 +2063,7 @@ func _finish_time_trial() -> void:
 
 
 func _alphabet_count_text(count: int) -> String:
-	return "%d alphabet" % count if count == 1 else "%d alphabets" % count
+	return "%d Alphabet" % count if count == 1 else "%d Alphabets" % count
 
 
 func _time_trial_goal(seconds: float, completed: bool) -> String:
@@ -2167,6 +2167,14 @@ func _medal_texture(name: String) -> AtlasTexture:
 	return texture
 
 
+func _result_progress_text() -> String:
+	var progress := _alphabet_count_text(rounds_completed) if rounds_completed > 0 else ""
+	if letter_index > 0:
+		var letter_text := "Letter %s" % LETTERS[letter_index - 1]
+		progress = "%s & %s" % [progress, letter_text] if not progress.is_empty() else letter_text
+	return progress
+
+
 func _show_medal(name: String) -> void:
 	if name == "No medal":
 		medal_icon.visible = false
@@ -2175,7 +2183,7 @@ func _show_medal(name: String) -> void:
 	medal_icon.texture = _medal_texture(name)
 	medal_icon.visible = true
 	medal_label.visible = true
-	medal_label.text = "%s\n%s" % [name, _format_time(elapsed_time)] if game_mode == "time_trial" else "%s\n%d Pokémon" % [_alphabet_count_text(rounds_completed), answers.size()]
+	medal_label.text = "%s\n%s" % [name, _format_time(elapsed_time)] if game_mode == "time_trial" else "%s\n%s\n%d Pokémon" % [name, _result_progress_text(), answers.size()]
 	medal_label.add_theme_color_override("font_color", Color("#ffffff"))
 	_animate_earned_medal()
 
@@ -2319,7 +2327,7 @@ func _end_run(reason: String, completed_time_trial: bool = false) -> void:
 	if personal_best:
 		_show_personal_best()
 	status_label.visible = not (game_mode == "time_trial" and completed_time_trial)
-	progress_row.visible = not (game_mode == "time_trial" and completed_time_trial)
+	progress_row.visible = game_mode != "time_trial" and game_mode != "time_attack"
 	_update_screen()
 
 
