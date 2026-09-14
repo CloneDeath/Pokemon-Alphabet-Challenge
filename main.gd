@@ -1530,15 +1530,16 @@ func _disable_keyboard_suggestions() -> void:
 			const configure = () => {
 				document.querySelectorAll('input, textarea').forEach((field) => {
 					if (field.type === 'file') return;
-					field.setAttribute('autocomplete', 'new-password');
+					field.type = 'text';
+					field.setAttribute('autocomplete', 'off');
 					field.setAttribute('autocorrect', 'off');
 					field.setAttribute('autocapitalize', 'none');
 					field.setAttribute('spellcheck', 'false');
+					field.setAttribute('name', 'pokemon-answer');
+					field.setAttribute('inputmode', 'text');
 					field.setAttribute('data-lpignore', 'true');
-					if (field.tagName === 'INPUT') {
-						field.type = 'password';
-						field.style.webkitTextSecurity = 'none';
-					}
+					field.setAttribute('data-1p-ignore', 'true');
+					field.style.webkitTextSecurity = 'none';
 				});
 			};
 			configure();
