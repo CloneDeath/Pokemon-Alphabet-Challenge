@@ -1531,7 +1531,7 @@ func _disable_keyboard_suggestions() -> void:
 				document.querySelectorAll('input, textarea').forEach((field) => {
 					if (field.type === 'file') return;
 					field.type = 'text';
-					field.setAttribute('autocomplete', 'off');
+					field.setAttribute('autocomplete', 'one-time-code');
 					field.setAttribute('autocorrect', 'off');
 					field.setAttribute('autocapitalize', 'none');
 					field.setAttribute('spellcheck', 'false');
