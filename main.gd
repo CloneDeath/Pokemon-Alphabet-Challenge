@@ -180,9 +180,14 @@ func _format_time(seconds: float) -> String:
 	return "%d:%05.2f" % [minutes, remaining]
 
 
+func _format_live_time(seconds: float) -> String:
+	var total_seconds := ceili(seconds) if game_mode == "time_attack" else floori(seconds)
+	return "%d:%02d" % [total_seconds / 60, total_seconds % 60]
+
+
 func _update_timer_label() -> void:
 	if is_instance_valid(timer_label):
-		timer_label.text = _format_time(time_attack_remaining if game_mode == "time_attack" else elapsed_time)
+		timer_label.text = _format_live_time(time_attack_remaining if game_mode == "time_attack" else elapsed_time)
 
 
 func _build_background() -> void:
@@ -1014,17 +1019,14 @@ func _refresh_main_menu() -> void:
 	time_trial_score_label.text = "" if not has_time_trial_best else (
 		_format_time(time_trial_best) if time_trial_best_completed else "%d Pokémon" % time_trial_best_pokemon
 	)
-	time_trial_score_label.visible = has_time_trial_best
 	_set_menu_medal(time_trial_medal_icon, _time_trial_medal_name(time_trial_best), has_time_trial_best and time_trial_best_completed)
 	time_attack_score_label.text = "" if not has_time_attack_high_score else "%s\n%d Pokémon" % [
 		_alphabet_count_text(time_attack_best_alphabets), time_attack_high_score
 	]
-	time_attack_score_label.visible = has_time_attack_high_score
 	_set_menu_medal(time_attack_medal_icon, _time_attack_medal_name(time_attack_best_alphabets), has_time_attack_high_score)
 	infinite_score_label.text = "" if not has_high_score else "%s\n%d Pokémon" % [
 		_alphabet_count_text(infinite_best_alphabets), high_score
 	]
-	infinite_score_label.visible = has_high_score
 	_set_menu_medal(infinite_medal_icon, _infinite_medal_name(infinite_best_alphabets), has_high_score)
 	var discovered := pokedex_data.size()
 	var total := pokemon_names.size()
@@ -2218,7 +2220,7 @@ func _end_run(reason: String, completed_time_trial: bool = false) -> void:
 	var personal_best := false
 	if game_mode == "time_trial":
 		elapsed_time = Time.get_unix_time_from_system() - time_trial_started_at
-		_update_timer_label()
+		timer_label.text = _format_time(elapsed_time)
 	elif game_mode == "time_attack" and not infinite_mode_unlocked:
 		infinite_mode_unlocked = true
 		_save_stats()
