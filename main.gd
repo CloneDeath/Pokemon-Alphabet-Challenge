@@ -83,6 +83,7 @@ var game_mode := "challenge"
 var time_trial_started_at := 0.0
 var elapsed_time := 0.0
 var time_attack_remaining := 60.0
+var run_earned_personal_best := false
 var active_hint_text := ""
 var active_hint_pokemon := ""
 var current_run_names: Array[String] = []
@@ -106,8 +107,12 @@ var status_label: Label
 var progress_row: HBoxContainer
 var progress_label: Label
 var timer_label: Label
+var infinite_medal_progress: ProgressBar
+var infinite_medal_progress_label: Label
 var medal_icon: TextureRect
 var medal_label: Label
+var best_medal_icon: TextureRect
+var best_medal_label: Label
 var next_medal_icon: TextureRect
 var next_medal_label: Label
 var personal_best_label: Label
@@ -145,6 +150,7 @@ var infinite_medal_icon: TextureRect
 var pokedex_medal_icon: TextureRect
 var restore_dialog: FileDialog
 var settings_popup: PopupPanel
+var share_popup: PopupPanel
 var pokedex_list: VBoxContainer
 var pokedex_grids: Array[GridContainer] = []
 
@@ -370,6 +376,19 @@ func _build_ui() -> void:
 	timer_label.add_theme_color_override("font_color", Color("#8ee8d0"))
 	progress_row.add_child(timer_label)
 
+	infinite_medal_progress_label = Label.new()
+	infinite_medal_progress_label.visible = false
+	infinite_medal_progress_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	infinite_medal_progress_label.add_theme_font_size_override("font_size", 12)
+	infinite_medal_progress_label.add_theme_color_override("font_color", Color("#aebbd4"))
+	layout.add_child(infinite_medal_progress_label)
+
+	infinite_medal_progress = ProgressBar.new()
+	infinite_medal_progress.visible = false
+	infinite_medal_progress.custom_minimum_size = Vector2(0, 10)
+	infinite_medal_progress.show_percentage = false
+	layout.add_child(infinite_medal_progress)
+
 	current_row = HBoxContainer.new()
 	current_row.custom_minimum_size = Vector2(0, 92)
 	current_row.add_theme_constant_override("separation", 12)
@@ -548,6 +567,20 @@ func _build_ui() -> void:
 	next_medal_row.add_theme_constant_override("separation", 5)
 	suggestions_layout.add_child(next_medal_row)
 
+	best_medal_icon = TextureRect.new()
+	best_medal_icon.visible = false
+	best_medal_icon.custom_minimum_size = Vector2(34, 34)
+	best_medal_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	best_medal_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	best_medal_icon.modulate.a = 0.72
+	next_medal_row.add_child(best_medal_icon)
+
+	best_medal_label = Label.new()
+	best_medal_label.visible = false
+	best_medal_label.add_theme_font_size_override("font_size", 12)
+	best_medal_label.add_theme_color_override("font_color", Color("#aebbd4"))
+	next_medal_row.add_child(best_medal_label)
+
 	next_medal_icon = TextureRect.new()
 	next_medal_icon.visible = false
 	next_medal_icon.custom_minimum_size = Vector2(34, 34)
@@ -615,6 +648,15 @@ func _build_ui() -> void:
 	restart_button.pressed.connect(_show_main_menu)
 	results_buttons.add_child(restart_button)
 
+	var share_button := Button.new()
+	share_button.text = "Share"
+	share_button.custom_minimum_size = Vector2(0, 48)
+	share_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	share_button.pressed.connect(_show_share_popup)
+	results_buttons.add_child(share_button)
+
+	_build_share_popup()
+
 	give_up_confirmation = ConfirmationDialog.new()
 	give_up_confirmation.title = "Give up?"
 	give_up_confirmation.dialog_text = "Are you sure you want to end this run?"
@@ -647,6 +689,79 @@ func _build_ui() -> void:
 
 	_build_main_menu()
 	_build_pokedex_screen()
+
+
+func _build_share_popup() -> void:
+	share_popup = PopupPanel.new()
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color("#14284b")
+	panel_style.border_color = Color("#62a8e5")
+	panel_style.set_border_width_all(2)
+	panel_style.set_corner_radius_all(12)
+	share_popup.add_theme_stylebox_override("panel", panel_style)
+	add_child(share_popup)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 18)
+	margin.add_theme_constant_override("margin_right", 18)
+	margin.add_theme_constant_override("margin_top", 16)
+	margin.add_theme_constant_override("margin_bottom", 16)
+	share_popup.add_child(margin)
+	var layout := VBoxContainer.new()
+	layout.add_theme_constant_override("separation", 8)
+	margin.add_child(layout)
+	var title := Label.new()
+	title.text = "Share Results"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 19)
+	layout.add_child(title)
+	for option in [["Copy", "_copy_results"], ["Share…", "_native_share_results"], ["X", "_share_results_x"], ["Facebook", "_share_results_facebook"]]:
+		var button := Button.new()
+		button.text = String(option[0])
+		button.custom_minimum_size = Vector2(230, 42)
+		button.pressed.connect(Callable(self, String(option[1])))
+		layout.add_child(button)
+
+
+func _share_text() -> String:
+	var result := ""
+	if game_mode == "time_trial":
+		result = "I finished Time Trial in %s" % _format_time(elapsed_time) if rounds_completed > 0 else "I reached %s in Time Trial" % _result_progress_text()
+	elif game_mode == "time_attack":
+		result = "I got %s in Time Attack" % _result_progress_text()
+	else:
+		result = "I got %s in Infinite Mode" % _result_progress_text()
+	return "%s on the Pokémon Alphabet Challenge. https://clonedeath.github.io/Pokemon-Alphabet-Challenge/" % result
+
+
+func _show_share_popup() -> void:
+	share_popup.popup_centered(Vector2i(280, 270))
+
+
+func _copy_results() -> void:
+	DisplayServer.clipboard_set(_share_text())
+	share_popup.hide()
+	_show_info_popup("Results copied!")
+
+
+func _native_share_results() -> void:
+	if OS.has_feature("web"):
+		var text_json := JSON.stringify(_share_text())
+		JavaScriptBridge.eval("if (navigator.share) navigator.share({text:%s}); else navigator.clipboard.writeText(%s);" % [text_json, text_json])
+	share_popup.hide()
+
+
+func _share_results_x() -> void:
+	OS.shell_open("https://twitter.com/intent/tweet?text=%s" % _share_text().uri_encode())
+	share_popup.hide()
+
+
+func _share_results_facebook() -> void:
+	OS.shell_open("https://www.facebook.com/sharer/sharer.php?u=%s&quote=%s" % [
+		"https://clonedeath.github.io/Pokemon-Alphabet-Challenge/".uri_encode(),
+		_share_text().uri_encode()
+	])
+	share_popup.hide()
 
 
 func _build_main_menu() -> void:
@@ -1047,10 +1162,17 @@ func _refresh_main_menu() -> void:
 		_alphabet_count_text(time_attack_best_alphabets), time_attack_high_score
 	]
 	_set_menu_medal(time_attack_medal_icon, _time_attack_medal_name(time_attack_best_alphabets), has_time_attack_high_score)
-	infinite_score_label.text = "" if not has_high_score else "%s\n%d Pokémon" % [
-		_alphabet_count_text(infinite_best_alphabets), high_score
+	var display_infinite_alphabets := infinite_best_alphabets
+	var display_infinite_pokemon := high_score
+	var display_infinite_score := has_high_score
+	if has_saved_run and not has_high_score:
+		display_infinite_alphabets = rounds_completed
+		display_infinite_pokemon = answers.size()
+		display_infinite_score = true
+	infinite_score_label.text = "" if not display_infinite_score else "%s\n%d Pokémon" % [
+		_alphabet_count_text(display_infinite_alphabets), display_infinite_pokemon
 	]
-	_set_menu_medal(infinite_medal_icon, _infinite_medal_name(infinite_best_alphabets), has_high_score)
+	_set_menu_medal(infinite_medal_icon, _infinite_medal_name(display_infinite_alphabets), display_infinite_score)
 	var discovered := pokedex_data.size()
 	var total := pokemon_names.size()
 	pokedex_button.get_parent().visible = discovered > 0
@@ -1142,6 +1264,7 @@ func _resume_challenge() -> void:
 
 
 func _show_pokedex() -> void:
+	game_margin.visible = false
 	menu_overlay.visible = false
 	pokedex_overlay.visible = true
 	_populate_pokedex()
@@ -1537,6 +1660,7 @@ func _submit_answer(raw_answer: String) -> void:
 			_finish_time_trial()
 			return
 	_skip_unavailable_letters()
+	_record_live_infinite_best()
 	_update_screen()
 	_save_active_run()
 	entry.grab_focus()
@@ -2145,6 +2269,52 @@ func _infinite_goal(alphabets: int) -> String:
 	return ""
 
 
+func _next_infinite_medal() -> Dictionary:
+	for goal in [[3, "Sapphire"], [5, "Ruby"], [7, "Emerald"], [10, "Silver"], [20, "Gold"], [30, "Crystal"], [40, "Pearl"], [50, "Diamond"], [135, "Platinum"]]:
+		if rounds_completed < int(goal[0]):
+			return {"alphabets": int(goal[0]), "name": String(goal[1])}
+	return {}
+
+
+func _update_infinite_medal_progress() -> void:
+	var show := game_mode == "challenge" and not run_over
+	infinite_medal_progress.visible = show
+	infinite_medal_progress_label.visible = show
+	if not show:
+		return
+	var goal := _next_infinite_medal()
+	if goal.is_empty():
+		infinite_medal_progress_label.text = "All medals earned!"
+		infinite_medal_progress.value = 100.0
+		return
+	infinite_medal_progress.max_value = float(goal.alphabets)
+	infinite_medal_progress.value = float(rounds_completed) + float(letter_index) / 26.0
+	infinite_medal_progress_label.text = "Next medal: %s at %s" % [String(goal.name), _alphabet_count_text(int(goal.alphabets))]
+
+
+func _record_live_infinite_best() -> void:
+	if game_mode != "challenge" or run_over:
+		return
+	var previous_medal := _infinite_medal_name(infinite_best_alphabets)
+	var is_best := not has_high_score or rounds_completed > infinite_best_alphabets or (rounds_completed == infinite_best_alphabets and answers.size() > high_score)
+	if not is_best:
+		return
+	has_high_score = true
+	high_score = answers.size()
+	infinite_best_alphabets = rounds_completed
+	run_earned_personal_best = true
+	_save_stats()
+	var earned_medal := _infinite_medal_name(rounds_completed)
+	if earned_medal != "No medal" and earned_medal != previous_medal:
+		_show_info_popup("%s medal earned!" % earned_medal)
+		_emit_particles(infinite_medal_progress.global_position + infinite_medal_progress.size * 0.5, true)
+		var original_position := game_margin.position
+		var tween := create_tween()
+		tween.tween_property(game_margin, "position", original_position + Vector2(5, 0), 0.05)
+		tween.tween_property(game_margin, "position", original_position - Vector2(4, 0), 0.05)
+		tween.tween_property(game_margin, "position", original_position, 0.08)
+
+
 func _medal_color(name: String) -> Color:
 	return {
 		"Platinum": Color("#d7e4eb"), "Diamond": Color("#67d8ef"),
@@ -2177,8 +2347,17 @@ func _result_progress_text() -> String:
 
 func _show_medal(name: String) -> void:
 	if name == "No medal":
-		medal_icon.visible = false
-		medal_label.visible = false
+		medal_icon.visible = true
+		medal_label.visible = true
+		_load_sprite_by_id(25, medal_icon)
+		var encouragements := [
+			"You did your best… but you can do better!",
+			"That next medal is achievable!",
+			"One more run. You've got this!"
+		]
+		medal_label.text = "%s\n%d Pokémon\n%s" % [_result_progress_text(), answers.size(), encouragements.pick_random()]
+		medal_label.add_theme_color_override("font_color", Color("#ffffff"))
+		_animate_earned_medal()
 		return
 	medal_icon.texture = _medal_texture(name)
 	medal_icon.visible = true
@@ -2208,15 +2387,37 @@ func _animate_earned_medal() -> void:
 func _next_medal_goal(completed_time_trial: bool) -> Dictionary:
 	if game_mode == "time_trial":
 		var time_goals := [[120.0, "Silver"], [90.0, "Gold"], [60.0, "Crystal"], [50.0, "Sapphire"], [45.0, "Ruby"], [40.0, "Emerald"], [35.0, "Pearl"], [30.0, "Diamond"], [26.0, "Platinum"]]
+		var comparison_time := time_trial_best if time_trial_best_completed else elapsed_time
 		for goal in time_goals:
-			if not completed_time_trial or elapsed_time > float(goal[0]):
+			if not time_trial_best_completed or comparison_time > float(goal[0]):
 				return {"name": String(goal[1]), "threshold": "Finish in %s" % _format_time(float(goal[0]))}
 		return {}
 	var goals := [[1, "Sapphire"], [2, "Ruby"], [3, "Emerald"], [4, "Silver"], [5, "Gold"], [6, "Crystal"], [7, "Pearl"], [8, "Diamond"], [10, "Platinum"]] if game_mode == "time_attack" else [[3, "Sapphire"], [5, "Ruby"], [7, "Emerald"], [10, "Silver"], [20, "Gold"], [30, "Crystal"], [40, "Pearl"], [50, "Diamond"], [135, "Platinum"]]
+	var best_alphabets := time_attack_best_alphabets if game_mode == "time_attack" else infinite_best_alphabets
 	for goal in goals:
-		if rounds_completed < int(goal[0]):
+		if best_alphabets < int(goal[0]):
 			return {"name": String(goal[1]), "threshold": _alphabet_count_text(int(goal[0]))}
 	return {}
+
+
+func _show_best_medal(personal_best: bool) -> void:
+	best_medal_icon.visible = false
+	best_medal_label.visible = false
+	if personal_best:
+		return
+	var name := ""
+	if game_mode == "time_trial" and time_trial_best_completed:
+		name = _time_trial_medal_name(time_trial_best)
+	elif game_mode == "time_attack" and has_time_attack_high_score:
+		name = _time_attack_medal_name(time_attack_best_alphabets)
+	elif game_mode == "challenge" and has_high_score:
+		name = _infinite_medal_name(infinite_best_alphabets)
+	if name.is_empty() or name == "No medal":
+		return
+	best_medal_icon.texture = _medal_texture(name)
+	best_medal_icon.visible = true
+	best_medal_label.text = "Best: %s" % name
+	best_medal_label.visible = true
 
 
 func _show_next_medal(completed_time_trial: bool) -> void:
@@ -2300,6 +2501,7 @@ func _end_run(reason: String, completed_time_trial: bool = false) -> void:
 				time_trial_best_pokemon = answers.size()
 				has_time_trial_best = true
 				_save_stats()
+			_show_medal("No medal")
 			status_label.text = "%s  •  %s" % [reason, _format_time(elapsed_time)]
 			_populate_possible_answers("")
 	elif game_mode == "time_attack":
@@ -2311,9 +2513,9 @@ func _end_run(reason: String, completed_time_trial: bool = false) -> void:
 			_save_stats()
 		_show_medal(_time_attack_medal_name(rounds_completed))
 		_populate_possible_answers("")
-		status_label.text = "%s  •  %s  •  %d Pokémon" % [reason, _alphabet_count_text(rounds_completed), answers.size()]
+		status_label.text = ""
 	else:
-		personal_best = not has_high_score or rounds_completed > infinite_best_alphabets or (rounds_completed == infinite_best_alphabets and answers.size() > high_score)
+		personal_best = run_earned_personal_best or not has_high_score or rounds_completed > infinite_best_alphabets or (rounds_completed == infinite_best_alphabets and answers.size() > high_score)
 		_show_medal(_infinite_medal_name(rounds_completed))
 		_populate_possible_answers("")
 		if personal_best:
@@ -2323,10 +2525,11 @@ func _end_run(reason: String, completed_time_trial: bool = false) -> void:
 			_save_stats()
 		status_label.text = reason
 
+	_show_best_medal(personal_best)
 	_show_next_medal(completed_time_trial)
 	if personal_best:
 		_show_personal_best()
-	status_label.visible = not (game_mode == "time_trial" and completed_time_trial)
+	status_label.visible = game_mode == "challenge" or (game_mode == "time_trial" and not completed_time_trial)
 	progress_row.visible = game_mode != "time_trial" and game_mode != "time_attack"
 	_update_screen()
 
@@ -2388,6 +2591,7 @@ func _update_screen() -> void:
 	else:
 		progress_label.text = "Alphabet %d  •  %d / 26" % [rounds_completed + 1, letter_index]
 	letter_label.text = LETTERS[letter_index]
+	_update_infinite_medal_progress()
 	if not run_over:
 		_update_hint_button()
 
@@ -2397,6 +2601,7 @@ func _reset_run() -> void:
 	rounds_completed = 0
 	run_over = false
 	run_saved = false
+	run_earned_personal_best = false
 	hints_remaining = 3
 	active_hint_text = ""
 	active_hint_pokemon = ""
@@ -2406,6 +2611,7 @@ func _reset_run() -> void:
 	completed_round_entries.clear()
 	answers.clear()
 	used_names.clear()
+	entry.clear()
 	for row in recent_rows:
 		if is_instance_valid(row):
 			row.queue_free()
@@ -2423,6 +2629,8 @@ func _reset_run() -> void:
 	next_medal_icon.visible = false
 	next_medal_label.visible = false
 	personal_best_label.visible = false
+	best_medal_icon.visible = false
+	best_medal_label.visible = false
 	entry.visible = true
 	current_row.visible = true
 	stumped_button.visible = true
