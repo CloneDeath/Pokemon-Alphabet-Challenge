@@ -107,6 +107,9 @@ var progress_label: Label
 var timer_label: Label
 var medal_icon: TextureRect
 var medal_label: Label
+var next_medal_icon: TextureRect
+var next_medal_label: Label
+var personal_best_label: Label
 var answers_scroll: ScrollContainer
 var answers_grid: GridContainer
 var grid_name_label: Label
@@ -506,6 +509,16 @@ func _build_ui() -> void:
 	suggestions_layout.add_theme_constant_override("separation", 4)
 	suggestions_scroll.add_child(suggestions_layout)
 
+	personal_best_label = Label.new()
+	personal_best_label.visible = false
+	personal_best_label.text = "PERSONAL BEST!"
+	personal_best_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	personal_best_label.add_theme_font_size_override("font_size", 21)
+	personal_best_label.add_theme_color_override("font_color", Color("#fff3a0"))
+	personal_best_label.add_theme_color_override("font_outline_color", Color("#8e5f00"))
+	personal_best_label.add_theme_constant_override("outline_size", 4)
+	suggestions_layout.add_child(personal_best_label)
+
 	var medal_row := HBoxContainer.new()
 	medal_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	medal_row.add_theme_constant_override("separation", 6)
@@ -513,7 +526,7 @@ func _build_ui() -> void:
 
 	medal_icon = TextureRect.new()
 	medal_icon.visible = false
-	medal_icon.custom_minimum_size = Vector2(52, 52)
+	medal_icon.custom_minimum_size = Vector2(76, 76)
 	medal_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	medal_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	medal_row.add_child(medal_icon)
@@ -523,6 +536,25 @@ func _build_ui() -> void:
 	medal_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	medal_label.add_theme_font_size_override("font_size", 19)
 	medal_row.add_child(medal_label)
+
+	var next_medal_row := HBoxContainer.new()
+	next_medal_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	next_medal_row.add_theme_constant_override("separation", 5)
+	suggestions_layout.add_child(next_medal_row)
+
+	next_medal_icon = TextureRect.new()
+	next_medal_icon.visible = false
+	next_medal_icon.custom_minimum_size = Vector2(34, 34)
+	next_medal_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	next_medal_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	next_medal_icon.modulate.a = 0.58
+	next_medal_row.add_child(next_medal_icon)
+
+	next_medal_label = Label.new()
+	next_medal_label.visible = false
+	next_medal_label.add_theme_font_size_override("font_size", 12)
+	next_medal_label.add_theme_color_override("font_color", Color("#8795ad"))
+	next_medal_row.add_child(next_medal_label)
 
 	suggestions_label = Label.new()
 	suggestions_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1320,6 +1352,33 @@ func _open_keyboard() -> void:
 		-1,
 		entry.caret_column
 	)
+	_disable_keyboard_suggestions()
+
+
+func _disable_keyboard_suggestions() -> void:
+	if not OS.has_feature("web"):
+		return
+	JavaScriptBridge.eval("""
+		(() => {
+			const configure = () => {
+				document.querySelectorAll('input, textarea').forEach((field) => {
+					if (field.type === 'file') return;
+					field.setAttribute('autocomplete', 'new-password');
+					field.setAttribute('autocorrect', 'off');
+					field.setAttribute('autocapitalize', 'none');
+					field.setAttribute('spellcheck', 'false');
+					field.setAttribute('data-lpignore', 'true');
+					if (field.tagName === 'INPUT') {
+						field.type = 'password';
+						field.style.webkitTextSecurity = 'none';
+					}
+				});
+			};
+			configure();
+			setTimeout(configure, 0);
+			setTimeout(configure, 100);
+		})();
+	""", true)
 
 
 func _load_theme_font() -> void:
@@ -1954,7 +2013,13 @@ func _ask_give_up() -> void:
 
 
 func _confirm_stumped() -> void:
-	_end_run("You made it to %s" % LETTERS[letter_index], false)
+	if game_mode == "challenge":
+		var result := "You made it to %d Pokémon" % answers.size()
+		if rounds_completed > 0:
+			result += ", and completed %s" % _alphabet_count_text(rounds_completed)
+		_end_run(result, false)
+	else:
+		_end_run("You made it to %s" % LETTERS[letter_index], false)
 
 
 func _finish_time_trial() -> void:
@@ -2080,9 +2145,74 @@ func _show_medal(name: String) -> void:
 	medal_label.visible = true
 	medal_label.text = _format_time(elapsed_time) if game_mode == "time_trial" else "%s\n%d Pokémon" % [_alphabet_count_text(rounds_completed), answers.size()]
 	medal_label.add_theme_color_override("font_color", Color("#ffffff"))
+	_animate_earned_medal()
+
+
+func _animate_earned_medal() -> void:
+	await get_tree().process_frame
+	if not medal_icon.visible:
+		return
+	medal_icon.pivot_offset = medal_icon.size * 0.5
+	medal_icon.scale = Vector2(0.35, 0.35)
+	medal_icon.rotation = -0.22
+	medal_icon.modulate.a = 0.0
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(medal_icon, "scale", Vector2.ONE, 0.55).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(medal_icon, "rotation", 0.0, 0.45).set_trans(Tween.TRANS_BACK)
+	tween.tween_property(medal_icon, "modulate:a", 1.0, 0.22)
+	tween.set_parallel(false)
+	tween.tween_callback(func(): _emit_particles(medal_icon.global_position + medal_icon.size * 0.5, true))
+
+
+func _next_medal_goal(completed_time_trial: bool) -> Dictionary:
+	if game_mode == "time_trial":
+		var time_goals := [[120.0, "Silver"], [90.0, "Gold"], [60.0, "Crystal"], [50.0, "Sapphire"], [45.0, "Ruby"], [40.0, "Emerald"], [35.0, "Pearl"], [30.0, "Diamond"], [26.0, "Platinum"]]
+		for goal in time_goals:
+			if not completed_time_trial or elapsed_time > float(goal[0]):
+				return {"name": String(goal[1]), "threshold": "Finish in %s" % _format_time(float(goal[0]))}
+		return {}
+	var goals := [[1, "Sapphire"], [2, "Ruby"], [3, "Emerald"], [4, "Silver"], [5, "Gold"], [6, "Crystal"], [7, "Pearl"], [8, "Diamond"], [10, "Platinum"]] if game_mode == "time_attack" else [[3, "Sapphire"], [5, "Ruby"], [7, "Emerald"], [10, "Silver"], [20, "Gold"], [30, "Crystal"], [40, "Pearl"], [50, "Diamond"], [135, "Platinum"]]
+	for goal in goals:
+		if rounds_completed < int(goal[0]):
+			return {"name": String(goal[1]), "threshold": _alphabet_count_text(int(goal[0]))}
+	return {}
+
+
+func _show_next_medal(completed_time_trial: bool) -> void:
+	var goal := _next_medal_goal(completed_time_trial)
+	if goal.is_empty():
+		next_medal_icon.visible = false
+		next_medal_label.visible = false
+		return
+	next_medal_icon.texture = _medal_texture(String(goal.name))
+	next_medal_label.text = "Next: %s\n%s" % [String(goal.name), String(goal.threshold)]
+	next_medal_icon.visible = true
+	next_medal_label.visible = true
+	next_medal_icon.modulate.a = 0.0
+	next_medal_label.modulate.a = 0.0
+	var tween := create_tween()
+	tween.tween_interval(0.65)
+	tween.set_parallel(true)
+	tween.tween_property(next_medal_icon, "modulate:a", 0.58, 0.45)
+	tween.tween_property(next_medal_label, "modulate:a", 1.0, 0.45)
+
+
+func _show_personal_best() -> void:
+	personal_best_label.visible = true
+	personal_best_label.pivot_offset = personal_best_label.size * 0.5
+	personal_best_label.scale = Vector2(0.7, 0.7)
+	personal_best_label.modulate = Color(1.0, 0.78, 0.25, 0.0)
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(personal_best_label, "scale", Vector2.ONE, 0.48).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(personal_best_label, "modulate", Color.WHITE, 0.28)
+	tween.set_parallel(false)
+	tween.tween_callback(func(): _emit_particles(personal_best_label.global_position + personal_best_label.size * 0.5, true))
 
 
 func _end_run(reason: String, completed_time_trial: bool = false) -> void:
+	var personal_best := false
 	if game_mode == "time_trial":
 		elapsed_time = Time.get_unix_time_from_system() - time_trial_started_at
 		_update_timer_label()
@@ -2102,17 +2232,20 @@ func _end_run(reason: String, completed_time_trial: bool = false) -> void:
 	suggestions_scroll.visible = true
 	current_row.get_parent().move_child(suggestions_scroll, current_row.get_index())
 	results_buttons.visible = true
+	personal_best_label.visible = false
+	next_medal_icon.visible = false
+	next_medal_label.visible = false
+	medal_icon.visible = false
 	medal_label.visible = false
 
 	for child in suggestions_grid.get_children():
 		child.queue_free()
 
 	if game_mode == "time_trial":
-		var goal := _time_trial_goal(elapsed_time, completed_time_trial)
 		if completed_time_trial:
+			personal_best = not time_trial_best_completed or elapsed_time < time_trial_best
 			_show_medal(_time_trial_medal_name(elapsed_time))
-			var is_new_best := has_time_trial_best and (not time_trial_best_completed or elapsed_time < time_trial_best)
-			if not time_trial_best_completed or elapsed_time < time_trial_best:
+			if personal_best:
 				time_trial_best = elapsed_time
 				time_trial_best_completed = true
 				time_trial_best_alphabets = rounds_completed
@@ -2120,46 +2253,45 @@ func _end_run(reason: String, completed_time_trial: bool = false) -> void:
 				has_time_trial_best = true
 				_save_stats()
 			status_label.text = "Finished in %s" % _format_time(elapsed_time)
-			if is_new_best:
-				status_label.text += "  (Best!)"
-			suggestions_label.text = goal
+			suggestions_label.visible = false
 		else:
-			if not time_trial_best_completed and (not has_time_trial_best or answers.size() > time_trial_best_pokemon):
+			personal_best = not time_trial_best_completed and (not has_time_trial_best or answers.size() > time_trial_best_pokemon)
+			if personal_best:
 				time_trial_best_pokemon = answers.size()
 				has_time_trial_best = true
 				_save_stats()
 			status_label.text = "%s  •  %s" % [reason, _format_time(elapsed_time)]
-			_populate_possible_answers(goal)
+			_populate_possible_answers("")
 	elif game_mode == "time_attack":
-		var is_new_best := has_time_attack_high_score and (rounds_completed > time_attack_best_alphabets or (rounds_completed == time_attack_best_alphabets and answers.size() > time_attack_high_score))
-		if not has_time_attack_high_score or is_new_best:
+		personal_best = not has_time_attack_high_score or rounds_completed > time_attack_best_alphabets or (rounds_completed == time_attack_best_alphabets and answers.size() > time_attack_high_score)
+		if personal_best:
 			time_attack_high_score = answers.size()
 			time_attack_best_alphabets = rounds_completed
 			has_time_attack_high_score = true
-		_save_stats()
+			_save_stats()
 		_show_medal(_time_attack_medal_name(rounds_completed))
-		_populate_possible_answers(_time_attack_goal(rounds_completed))
+		_populate_possible_answers("")
 		status_label.text = "%s  •  %s  •  %d Pokémon" % [reason, _alphabet_count_text(rounds_completed), answers.size()]
-		if is_new_best:
-			status_label.text += "  (Best!)"
 	else:
+		personal_best = not has_high_score or rounds_completed > infinite_best_alphabets or (rounds_completed == infinite_best_alphabets and answers.size() > high_score)
 		_show_medal(_infinite_medal_name(rounds_completed))
-		_populate_possible_answers(_infinite_goal(rounds_completed))
-		var is_new_best := has_high_score and (rounds_completed > infinite_best_alphabets or (rounds_completed == infinite_best_alphabets and answers.size() > high_score))
-		if not has_high_score or is_new_best:
+		_populate_possible_answers("")
+		if personal_best:
 			high_score = answers.size()
 			infinite_best_alphabets = rounds_completed
 			has_high_score = true
-		_save_stats()
-		status_label.text = "%s  •  %s  •  %d Pokémon" % [reason, _alphabet_count_text(rounds_completed), answers.size()]
-		if is_new_best:
-			status_label.text += "  (Best!)"
+			_save_stats()
+		status_label.text = reason
 
+	_show_next_medal(completed_time_trial)
+	if personal_best:
+		_show_personal_best()
 	status_label.visible = true
 	_update_screen()
 
 
 func _populate_possible_answers(prefix: String) -> void:
+	suggestions_label.visible = true
 	var possible := _available_names_for_letter(LETTERS[letter_index])
 	possible.sort_custom(func(left: String, right: String):
 		var left_priority := _suggestion_priority(left)
@@ -2246,6 +2378,9 @@ func _reset_run() -> void:
 	timer_label.visible = game_mode == "time_trial" or game_mode == "time_attack"
 	medal_icon.visible = false
 	medal_label.visible = false
+	next_medal_icon.visible = false
+	next_medal_label.visible = false
+	personal_best_label.visible = false
 	entry.visible = true
 	current_row.visible = true
 	stumped_button.visible = true
