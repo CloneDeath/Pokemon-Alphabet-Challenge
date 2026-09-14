@@ -715,12 +715,31 @@ func _build_share_popup() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 19)
 	layout.add_child(title)
-	for option in [["Copy", "_copy_results"], ["Share…", "_native_share_results"], ["X", "_share_results_x"], ["Facebook", "_share_results_facebook"]]:
+	for option in [
+		["Copy to Clipboard", "_copy_results", "clipboard"],
+		["Share…", "_native_share_results", "share"],
+		["X", "_share_results_x", "x"],
+		["Facebook", "_share_results_facebook", "facebook"]
+	]:
 		var button := Button.new()
 		button.text = String(option[0])
+		button.icon = _share_button_icon(String(option[2]))
 		button.custom_minimum_size = Vector2(230, 42)
 		button.pressed.connect(Callable(self, String(option[1])))
 		layout.add_child(button)
+
+
+func _share_button_icon(kind: String) -> Texture2D:
+	var paths := {
+		"clipboard": "<rect x='7' y='5' width='10' height='15' rx='2'/><path d='M9 5V3h6v2M10 10h4M10 14h4'/>",
+		"share": "<circle cx='18' cy='5' r='2.5'/><circle cx='6' cy='12' r='2.5'/><circle cx='18' cy='19' r='2.5'/><path d='m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5'/>",
+		"x": "<path d='M5 4l14 16M19 4 5 20'/>",
+		"facebook": "<path d='M14.5 21v-8h3l.5-4h-3.5V7c0-1.2.5-2 2.2-2H19V1.5c-.7-.1-1.8-.2-3-.2-3.7 0-6 2.2-6 6.1V9H7v4h3v8z' fill='white' stroke='none'/>"
+	}
+	var svg := "<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>%s</svg>" % String(paths.get(kind, ""))
+	var image := Image.new()
+	image.load_svg_from_string(svg, 1.0)
+	return ImageTexture.create_from_image(image)
 
 
 func _share_text() -> String:
