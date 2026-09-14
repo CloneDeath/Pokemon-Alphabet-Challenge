@@ -1012,6 +1012,15 @@ func _refresh_main_menu() -> void:
 	if not is_instance_valid(start_button):
 		return
 	start_button.text = "Time Trial" if time_attack_unlocked else "Begin"
+	var time_trial_row := start_button.get_parent() as HBoxContainer
+	if not time_attack_unlocked:
+		time_trial_row.alignment = BoxContainer.ALIGNMENT_CENTER
+		start_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		start_button.custom_minimum_size.x = 280.0
+	else:
+		time_trial_row.alignment = BoxContainer.ALIGNMENT_BEGIN
+		start_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		start_button.custom_minimum_size.x = 0.0
 	time_attack_button.get_parent().visible = time_attack_unlocked
 	time_trial_button.get_parent().visible = infinite_mode_unlocked
 	time_trial_button.visible = infinite_mode_unlocked
