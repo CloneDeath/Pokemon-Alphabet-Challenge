@@ -626,13 +626,6 @@ func _build_ui() -> void:
 	try_again_button.pressed.connect(_try_again)
 	results_buttons.add_child(try_again_button)
 
-	var results_pokedex_button := Button.new()
-	results_pokedex_button.text = "Pokédex"
-	results_pokedex_button.custom_minimum_size = Vector2(0, 48)
-	results_pokedex_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	results_pokedex_button.pressed.connect(_show_pokedex)
-	results_buttons.add_child(results_pokedex_button)
-
 	restart_button = Button.new()
 	restart_button.text = "Return to Menu"
 	restart_button.custom_minimum_size = Vector2(0, 48)
