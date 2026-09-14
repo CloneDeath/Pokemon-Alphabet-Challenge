@@ -1041,7 +1041,7 @@ func _refresh_main_menu() -> void:
 	)
 	time_trial_score_label.visible = has_time_trial_best
 	time_trial_score_label.custom_minimum_size.x = 82.0 if has_time_trial_best else 0.0
- 	_set_menu_medal(time_trial_medal_icon, _time_trial_medal_name(time_trial_best), has_time_trial_best and time_trial_best_completed)
+	_set_menu_medal(time_trial_medal_icon, _time_trial_medal_name(time_trial_best), has_time_trial_best and time_trial_best_completed)
 	time_trial_row.queue_sort()
 	time_attack_score_label.text = "" if not has_time_attack_high_score else "%s\n%d Pokémon" % [
 		_alphabet_count_text(time_attack_best_alphabets), time_attack_high_score
