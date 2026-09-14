@@ -2406,17 +2406,21 @@ func _show_best_medal(personal_best: bool) -> void:
 	if personal_best:
 		return
 	var name := ""
+	var value := ""
 	if game_mode == "time_trial" and time_trial_best_completed:
 		name = _time_trial_medal_name(time_trial_best)
+		value = _format_time(time_trial_best)
 	elif game_mode == "time_attack" and has_time_attack_high_score:
 		name = _time_attack_medal_name(time_attack_best_alphabets)
+		value = "%s • %d Pokémon" % [_alphabet_count_text(time_attack_best_alphabets), time_attack_high_score]
 	elif game_mode == "challenge" and has_high_score:
 		name = _infinite_medal_name(infinite_best_alphabets)
+		value = "%s • %d Pokémon" % [_alphabet_count_text(infinite_best_alphabets), high_score]
 	if name.is_empty() or name == "No medal":
 		return
 	best_medal_icon.texture = _medal_texture(name)
 	best_medal_icon.visible = true
-	best_medal_label.text = "Best: %s" % name
+	best_medal_label.text = "Best: %s\n%s" % [name, value]
 	best_medal_label.visible = true
 
 
